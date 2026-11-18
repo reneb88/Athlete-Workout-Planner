@@ -235,10 +235,10 @@ export function SkillEditor({ skill, onClose }) {
           <input type="url" inputMode="url" value={f.video_url} onChange={set('video_url')} placeholder="https://" />
         </Field>
       </div>
-      <Field label="Prerequisites">
+      <Field group label="Prerequisites" hint="Search, then tick as many skills as you like — or tick a whole family.">
         <SkillPicker value={f.prerequisites} onChange={set('prerequisites')} exclude={skill.id} placeholder="Search for a prerequisite skill…" />
       </Field>
-      <Field label="Official required element (rules)" hint="For competition routines — separate from the teaching category above. Pick any that apply.">
+      <Field group label="Official required element (rules)" hint="For competition routines — separate from the teaching category above. Pick any that apply.">
         <div className="re-pick">
           {REQUIRED_ELEMENTS.map((r) => {
             const on = reList(f).includes(r);
@@ -261,7 +261,7 @@ export function SkillEditor({ skill, onClose }) {
         <Field label="Common mistakes"><textarea rows={4} value={f.common_mistakes} onChange={set('common_mistakes')} /></Field>
       </div>
       <Field label="Review notes (coach only)"><input value={f.review_notes} onChange={set('review_notes')} /></Field>
-      <Field label="Leads to combos & routines" hint="When this trick is assigned, these are suggested: “Can you do this? Try this combo!” (Same as the readiness checkpoints in the Combo Library.)">
+      <Field group label="Leads to combos & routines" hint="When this trick is assigned, these are suggested: “Can you do this? Try this combo!” (Same as the readiness checkpoints in the Combo Library.)">
         <div className="chips">
           {comboIds.map((id) => {
             const c = combos.find((x) => x.id === id);

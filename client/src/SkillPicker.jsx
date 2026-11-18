@@ -1,14 +1,41 @@
 import { useMemo, useState } from 'react';
-import { Icon, useApp } from './components.jsx';
-import { matchesSearch, skillLabel } from './util.js';
+import { Check, Icon, useApp } from './components.jsx';
+import { familyHomes, famId, matchesSearch, skillLabel } from './util.js';
 
-/** Chip list of selected skill IDs + a search box to add more. */
+/**
+ * Multi-select skill picker: chips for what's selected, then a search whose results have tick boxes
+ * (grouped by family, with a box to tick a whole family). The list stays open while you tick.
+ */
 export default function SkillPicker({ value, onChange, exclude, placeholder = 'Search skills to add…' }) {
   const { skills, skillById } = useApp();
   const [q, setQ] = useState('');
-  const results = useMemo(() => (q.trim()
-    ? skills.filter((s) => !value.includes(s.id) && s.id !== exclude && matchesSearch(s, q)).slice(0, 12)
-    : []), [q, skills, value, exclude]);
+  const homes = useMemo(() => familyHomes(skills), [skills]);
+
+  const groups = useMemo(() => {
+    if (!q.trim()) return [];
+    const hits = skills.filter((s) => s.id !== exclude && matchesSearch(s, q))
+      .sort((a, b) => (homes.get(famId(a))?.first ?? 0) - (homes.get(famId(b))?.first ?? 0) || a.sequence - b.sequence);
+    const m = new Map();
+    for (const s of hits.slice(0, 80)) {
+      const k = famId(s);
+      if (!m.has(k)) m.set(k, { key: k, name: homes.get(k)?.name || s.family, where: homes.get(k) ? `${homes.get(k).category} › ${homes.get(k).subcategory}` : '', items: [] });
+      m.get(k).items.push(s);
+    }
+    return [...m.values()];
+  }, [q, skills, exclude, homes]);
+
+  const shownIds = groups.flatMap((g) => g.items.map((s) => s.id));
+  const sel = new Set(value);
+  const setMany = (ids, on) => {
+    const next = new Set(value);
+    ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+    onChange([...next]);
+  };
+  const tri = (ids) => {
+    const n = ids.filter((id) => sel.has(id)).length;
+    return n === 0 ? false : n === ids.length ? true : 'mixed';
+  };
+
   return (
     <div className="picker">
       {value.length > 0 && (
@@ -22,21 +49,40 @@ export default function SkillPicker({ value, onChange, exclude, placeholder = 'S
               </span>
             );
           })}
+          {value.length > 1 && <button type="button" className="btn ghost sm" onClick={() => onChange([])}>Clear all</button>}
         </div>
       )}
-      <input type="search" value={q} placeholder={placeholder} onChange={(e) => setQ(e.target.value)} />
-      {results.length > 0 && (
-        <ul className="picker-results">
-          {results.map((s) => (
-            <li key={s.id}>
-              <button type="button" onClick={() => { onChange([...value, s.id]); setQ(''); }}>
-                <span className="pill">{s.id}</span>
-                <span><b>{skillLabel(s)}</b><small>{s.category} › {s.subcategory} › {s.family}</small></span>
-                <Icon name="plus" size={18} />
-              </button>
-            </li>
-          ))}
-        </ul>
+      <div className="picker-search">
+        <input type="search" value={q} placeholder={placeholder} onChange={(e) => setQ(e.target.value)} />
+        {q && <button type="button" className="btn ghost sm" onClick={() => setQ('')}>Done</button>}
+      </div>
+      {groups.length > 0 && (
+        <div className="picker-results">
+          <div className="picker-bar">
+            <small className="muted">{shownIds.length} found · tick as many as you like</small>
+            <button type="button" className="btn ghost sm" onClick={() => setMany(shownIds, tri(shownIds) !== true)}>
+              {tri(shownIds) === true ? 'Untick all shown' : 'Select all shown'}
+            </button>
+          </div>
+          {groups.map((g) => {
+            const ids = g.items.map((s) => s.id);
+            return (
+              <div key={g.key} className="picker-group">
+                <div className="picker-fam" onClick={() => setMany(ids, tri(ids) !== true)}>
+                  <Check checked={tri(ids)} onChange={(on) => setMany(ids, on)} label={`All of ${g.name}`} />
+                  <b>{g.name}</b><small className="muted">{g.where}</small>
+                </div>
+                {g.items.map((s) => (
+                  <div key={s.id} className={`picker-item ${sel.has(s.id) ? 'on' : ''}`} onClick={() => setMany([s.id], !sel.has(s.id))}>
+                    <Check checked={sel.has(s.id)} onChange={(on) => setMany([s.id], on)} label={skillLabel(s)} />
+                    <span className="pill">{s.id}</span>
+                    <span>{skillLabel(s)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );

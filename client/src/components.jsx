@@ -154,13 +154,15 @@ export function useOpenSet(initial = []) {
   return { open, toggle, setMany, isOpen: (k) => open.has(k), setOpen };
 }
 
-export function Field({ label, children, hint }) {
+/** Form field. Use group for fields holding several controls (a <label> would forward clicks to the first one). */
+export function Field({ label, children, hint, group = false }) {
+  const Tag = group ? 'div' : 'label';
   return (
-    <label className="field">
+    <Tag className="field" role={group ? 'group' : undefined} aria-label={group ? label : undefined}>
       <span className="field-label">{label}</span>
       {children}
       {hint && <span className="field-hint">{hint}</span>}
-    </label>
+    </Tag>
   );
 }
 

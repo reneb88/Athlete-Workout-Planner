@@ -81,7 +81,7 @@ function ComboEditor({ combo, onClose }) {
         </Field>
         <Field label="Video link"><input type="url" inputMode="url" value={f.video_url} onChange={set('video_url')} placeholder="https://" /></Field>
       </div>
-      <Field label="Readiness checkpoints (optional)" hint="When any of these challenges is assigned, the athlete sees “Can you do this? Try this combo!”">
+      <Field group label="Readiness checkpoints (optional)" hint="When any of these challenges is assigned, the athlete sees “Can you do this? Try this combo!”">
         <SkillPicker value={f.checkpoints} onChange={set('checkpoints')} placeholder="Search for a checkpoint skill…" />
       </Field>
       <Field label="Notes / choreography"><textarea rows={5} value={f.notes} onChange={set('notes')} /></Field>
