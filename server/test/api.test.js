@@ -249,3 +249,17 @@ test('GIF links are stored and survive a videos-only import', async () => {
   assert.equal(s.getSkill('S136').gif_url, 'https://example.com/jack.gif');
   assert.equal(s.getSkill('S199').gif_url, 'https://example.com/cross.gif');
 });
+
+test('assignment history, kept dates and last printed', async () => {
+  const s = await fresh();
+  s.saveWorkout('A01', { skill_ids: ['S110', 'S111'] });
+  s.db.prepare("UPDATE skill_assignments SET assigned_at = '2026-01-01 10:00:00' WHERE athlete_id = 'A01'").run();
+  s.markPrinted('A01');
+  const w = s.saveWorkout('A01', { skill_ids: ['S110', 'S112'], combo_ids: ['C002'] });
+  assert.equal(w.assigned_at['skill:S110'], '2026-01-01 10:00:00'); // kept
+  assert.notEqual(w.assigned_at['skill:S112'], '2026-01-01 10:00:00'); // new today
+  assert.ok(w.last_printed_at);
+  const h = w.history.map((x) => `${x.action}:${x.item_id}`).sort();
+  assert.deepEqual(h, ['added:C002', 'added:S110', 'added:S111', 'added:S112', 'removed:S111'].sort());
+  assert.ok(w.history.find((x) => x.item_id === 'S112').item_name.startsWith('Toad: Perfect exit'));
+});

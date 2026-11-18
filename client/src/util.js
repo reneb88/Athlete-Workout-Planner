@@ -268,3 +268,15 @@ export function prereqText(skill, skillById) {
       ? `${p.family}: ${skillLabel(p)}` : skillLabel(p);
   }).filter(Boolean).join(', ');
 }
+
+/** SQLite "YYYY-MM-DD HH:MM:SS" (UTC) → Date */
+export const dbDate = (s) => (s ? new Date(String(s).replace(' ', 'T') + 'Z') : null);
+export const fmtDay = (s) => (s ? dbDate(s).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '');
+/** Items given to the athlete after their last printout ("NEW"). */
+export function newSincePrint(w) {
+  const since = w?.last_printed_at || '';
+  const out = new Set();
+  if (!since) return out;
+  for (const [k, at] of Object.entries(w.assigned_at || {})) if (at > since) out.add(k);
+  return out;
+}

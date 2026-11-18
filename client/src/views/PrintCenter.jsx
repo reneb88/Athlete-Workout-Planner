@@ -15,7 +15,7 @@ export default function PrintCenter({ initial }) {
     ? athletes.filter((a) => assignmentCounts[a.id]).map((a) => a.id)
     : (initial || '').split(',').filter((id) => athleteById[id])));
   const [pending, setPending] = useState(null); // 'print' | 'pdf' once everything has loaded
-  const [prefs, setPrefs] = useState(() => ({ hideDone: false, showNotes: false, ...loadPrefs() }));
+  const [prefs, setPrefs] = useState(() => ({ hideDone: false, showNotes: false, onlyNew: false, ...loadPrefs() }));
   const [workouts, setWorkouts] = useState({});
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
@@ -69,14 +69,21 @@ export default function PrintCenter({ initial }) {
     if (!pending || !ready) return;
     const what = pending;
     setPending(null);
-    if (what === 'print') setTimeout(() => window.print(), 300); else pdf();
+    if (what === 'print') setTimeout(doPrint, 300); else pdf();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pending, ready]);
   const printAll = (what) => { setMode('athletes'); setSelected(withWorkIds); setPending(what); };
 
+  // Remember the printout date for athlete checklists (posters/overview aren't tied to athletes)
+  function markPrinted() {
+    if (mode !== 'athletes' || !selected.length) return;
+    api.markPrinted(selected).then(() => setWorkouts({})).catch(() => {});
+  }
+  const doPrint = () => { window.print(); markPrinted(); };
+
   async function pdf() {
     setBusy(true);
-    try { await exportPdfMany(sheets, { showNotes: prefs.showNotes, poster: mode === 'posters' }); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try { await exportPdfMany(sheets, { showNotes: prefs.showNotes, poster: mode === 'posters' }); markPrinted(); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   }
 
   return (
@@ -88,7 +95,7 @@ export default function PrintCenter({ initial }) {
             : mode === 'overview' ? 'One sheet listing every athlete and what they’re working on.'
               : 'Pick the athletes for today’s practice. Each athlete prints on their own page.'}</p></div>
           <div className="btn-group">
-            <button className="btn primary" disabled={!ready} onClick={() => window.print()}><Icon name="print" /> Print {count || ''}</button>
+            <button className="btn primary" disabled={!ready} onClick={doPrint}><Icon name="print" /> Print {count || ''}</button>
             {mode !== 'overview' && <button className="btn" disabled={!ready || busy} onClick={pdf}><Icon name="file" /> {busy ? 'Making PDF…' : 'Save as PDF'}</button>}
           </div>
         </div>
@@ -145,6 +152,7 @@ export default function PrintCenter({ initial }) {
         </section>}
 
         <div className="print-opts card">
+          {mode === 'athletes' && <label className="opt"><Check checked={prefs.onlyNew} onChange={(v) => setPrefs((p) => ({ ...p, onlyNew: v }))} label="Only new" /> Only what’s new since each athlete’s last printout (add-on sheet)</label>}
           {mode === 'athletes' && <label className="opt"><Check checked={prefs.hideDone} onChange={(v) => setPrefs((p) => ({ ...p, hideDone: v }))} label="Leave out completed" /> Leave out challenges already checked off</label>}
           <label className="opt"><Check checked={prefs.showNotes} onChange={(v) => setPrefs((p) => ({ ...p, showNotes: v }))} label="Include notes" /> Include teaching notes</label>
         </div>

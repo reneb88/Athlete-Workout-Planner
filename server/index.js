@@ -59,6 +59,7 @@ export async function createApp({ dbFile, seedFile } = {}) {
   app.post('/api/athletes', h((req) => store.createAthlete(req.body)));
   app.put('/api/athletes/:id', h((req) => store.updateAthlete(req.params.id, req.body)));
   app.delete('/api/athletes/:id', h((req) => ({ ok: store.deleteAthlete(req.params.id) })));
+  app.post('/api/athletes/printed', h((req) => (req.body?.ids || []).map((id) => store.markPrinted(id))));
 
   app.post('/api/combos', h((req) => store.createCombo(req.body)));
   app.put('/api/combos/:id', h((req) => store.updateCombo(req.params.id, req.body)));

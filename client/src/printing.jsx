@@ -1,4 +1,4 @@
-import { athleteView, prereqText, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { athleteView, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, ctx) {
@@ -9,17 +9,17 @@ export function sheetData(athlete, w, ctx) {
   const comboByCheckpoint = {};
   combos.forEach((c) => { if (active.has(c.id)) c.checkpoints.forEach((s) => (comboByCheckpoint[s] ||= []).push(c)); });
   const done = new Set(w.progress.map((p) => `${p.item_type}:${p.item_id}`));
-  return { athlete, skills, combos: assigned, done, comboByCheckpoint, all: ctx.skills, videoBoard: athleteView(athlete, ctx.settings) === 'videos' };
+  return { athlete, skills, combos: assigned, done, comboByCheckpoint, all: ctx.skills, videoBoard: athleteView(athlete, ctx.settings) === 'videos',
+    fresh: newSincePrint(w), lastPrinted: w.last_printed_at || '' };
 }
 
 /** Apply print options (e.g. leave out what the athlete already completed). */
-export function applyOptions(d, { hideDone = false } = {}) {
-  if (!hideDone) return d;
-  return {
-    ...d,
-    skills: d.skills.filter((s) => !d.done.has(`skill:${s.id}`)),
-    combos: d.combos.filter((c) => !d.done.has(`combo:${c.id}`)),
-  };
+export function applyOptions(d, { hideDone = false, onlyNew = false } = {}) {
+  let out = d;
+  if (hideDone) out = { ...out, skills: out.skills.filter((s) => !d.done.has(`skill:${s.id}`)), combos: out.combos.filter((c) => !d.done.has(`combo:${c.id}`)) };
+  // Only what was added since this athlete's last printout (an add-on sheet instead of a full reprint)
+  if (onlyNew && d.fresh) out = { ...out, onlyNew: true, skills: out.skills.filter((s) => d.fresh.has(`skill:${s.id}`)), combos: out.combos.filter((c) => d.fresh.has(`combo:${c.id}`)) };
+  return out;
 }
 
 /** Branded checklist sheet. Hidden on screen unless inside .print-preview; always shown when printing. */
@@ -33,6 +33,7 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
         <div className="ps-brand"><img src="/icon.svg" alt="" /><div><strong>ROPEWORKS</strong><span>Training Studio</span></div></div>
         <div className="ps-who"><h1>{athlete.name}</h1><span>{[athlete.age && `Age ${athlete.age}`, athlete.group_notes, !poster && new Date().toLocaleDateString()].filter(Boolean).join(' · ')}</span></div>
       </header>
+      {data.onlyNew && <p className="ps-addon">Add-on sheet: new since {data.lastPrinted ? fmtDay(data.lastPrinted) : 'last printout'}</p>}
       {nodes.length === 0 && combos.length === 0 && <p className="ps-empty">Nothing to practice on this list.</p>}
       {nodes.map((c) => (
         <section key={c.key} className={`ps-cat cat-${c.name.toLowerCase()}`}>
@@ -46,7 +47,7 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
                 {f.skills.map((sk) => (
                   <li key={sk.id}>
                     <span className={`ps-box ${done.has(`skill:${sk.id}`) ? 'on' : ''}`} />
-                    <span>{skillLabel(sk)}{isVariant(sk, f) && <small className="ps-variant"> ({sk.subcategory || sk.category})</small>}</span>
+                    <span>{skillLabel(sk)}{isVariant(sk, f) && <small className="ps-variant"> ({sk.subcategory || sk.category})</small>}{data.fresh?.has(`skill:${sk.id}`) && !data.onlyNew && <b className="ps-new"> NEW</b>}</span>
                     {sk.video_url && <a className="ps-link" href={shareUrl(sk.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
                     {showNotes && sk.teaching_notes && <em className="ps-note">{sk.teaching_notes}</em>}
                     {prereqText(sk, skillById) && <em className="ps-note">Before this: {prereqText(sk, skillById)}</em>}

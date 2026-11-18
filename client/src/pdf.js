@@ -37,7 +37,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5); doc.setTextColor(...ORANGE);
     doc.text('TRAINING STUDIO', PAGE.margin, 29);
     doc.setTextColor(255, 255, 255); doc.setFontSize(13);
-    doc.text(athlete.name, W - PAGE.margin, 19, { align: 'right' });
+    doc.text(athlete.name + (athlete.addon ? '  ·  add-on' : ''), W - PAGE.margin, 19, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
     doc.text([athlete.age && `Age ${athlete.age}`, athlete.group_notes, !poster && new Date().toLocaleDateString()].filter(Boolean).join('  ·  '),
       W - PAGE.margin, 30, { align: 'right' });
@@ -103,9 +103,9 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
   };
 
   sheets.forEach((sheet, idx) => {
-    const { skills, combos, done, comboByCheckpoint, all = skills, videoBoard = false } = sheet;
+    const { skills, combos, done, comboByCheckpoint, all = skills, videoBoard = false, fresh, onlyNew } = sheet;
     noBox = videoBoard;
-    athlete = sheet.athlete;
+    athlete = onlyNew ? { ...sheet.athlete, addon: true } : sheet.athlete;
     if (idx > 0) doc.addPage();
     header(); col = 0; y = top;
 
@@ -126,7 +126,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
         if (famUrl) link('family video', famUrl, x + colW, y + 9);
         y += 14;
         for (const sk of f.skills) {
-          item(skillLabel(sk) + (isVariant(sk, f) ? ` (${sk.subcategory || sk.category})` : ''), {
+          item(skillLabel(sk) + (isVariant(sk, f) ? ` (${sk.subcategory || sk.category})` : '') + (fresh?.has(`skill:${sk.id}`) && !onlyNew ? '  NEW' : ''), {
             done: done.has(`skill:${sk.id}`), url: sk.video_url ? shareUrl(sk.video_url) : '', gif: sk.gif_url || '', note: [prereqText(sk, Object.fromEntries(all.map((x) => [x.id, x]))) && `Before this: ${prereqText(sk, Object.fromEntries(all.map((x) => [x.id, x])))}`, showNotes ? sk.teaching_notes : ''].filter(Boolean).join(' · '),
           });
           for (const cb of comboByCheckpoint[sk.id] || []) {

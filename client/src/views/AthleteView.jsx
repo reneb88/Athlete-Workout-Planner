@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, GifThumb, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { athleteView, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
+import { athleteView, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -54,6 +54,8 @@ export default function AthleteView({ athleteId }) {
   const comboList = assignedCombos.filter((c) => c.kind !== 'routine');
 
   const board = athleteView(athlete, app.settings) === 'videos';
+  const fresh = newSincePrint(w);
+  const markPrinted = () => api.markPrinted([athlete.id]).then(load).catch(() => {});
   const setView = (v) => app.run(() => api.updateAthlete(athlete.id, { view_style: v }), v ? `${athlete.name}: ${v === 'videos' ? 'video board' : 'checklist'}` : `${athlete.name}: automatic by age`);
 
   return (
@@ -79,9 +81,9 @@ export default function AthleteView({ athleteId }) {
               <button className="btn ghost sm" onClick={() => tree.setMany(families.map((f) => f.key), true)}>Expand all</button>
               <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
             </>}
-            <button className="btn sm" onClick={() => window.print()}><Icon name="print" size={18} /> Print</button>
+            <button className="btn sm" onClick={() => { window.print(); markPrinted(); }}><Icon name="print" size={18} /> Print</button>
             <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
-            <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board })}><Icon name="file" size={18} /> PDF</button>
+            <button className="btn sm" onClick={async () => { await exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board, fresh }); markPrinted(); }}><Icon name="file" size={18} /> PDF</button>
             <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
           </div>
         </div>
@@ -90,10 +92,12 @@ export default function AthleteView({ athleteId }) {
       {total === 0 && <Empty title="Nothing assigned yet">Use the Workout Designer to assign challenges to {athlete.name}.</Empty>}
 
       {board ? (
-        <VideoBoard skills={assignedSkills} all={app.skills} combos={assignedCombos} onPlay={setVideo} skillById={skillById} />
+        <VideoBoard skills={assignedSkills} all={app.skills} combos={assignedCombos} onPlay={setVideo} skillById={skillById} fresh={fresh} />
       ) : <div className="no-print">
         {families.length === 0 && assignedSkills.length > 0 && <Empty title={filter === 'done' ? 'Nothing checked off yet' : 'Everything is done — nice work!'} />}
-        {families.map((f) => {
+        {groupBy(families, (f) => f.category).map(([cat, list]) => (
+          <TypeSection key={cat} name={cat} count={`${list.length} famil${list.length === 1 ? 'y' : 'ies'}`}>
+        {list.map((f) => {
           const n = f.skills.length;
           const allSkillsInFam = assignedSkills.filter((s) => famId(s) === famId(f.skills[0]));
           const d = allSkillsInFam.filter((s) => done.has(`skill:${s.id}`)).length;
@@ -117,7 +121,7 @@ export default function AthleteView({ athleteId }) {
                       <div className={`check-item ${on ? 'on' : ''}`} onClick={() => toggle('skill', s.id, !on)}>
                         <Check size="lg" checked={on} onChange={(v) => toggle('skill', s.id, v)} label={skillLabel(s)} />
                         <div className="grow">
-                          <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</div>
+                          <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}{fresh.has(`skill:${s.id}`) && <span className="tag new-tag" title={`Added ${fmtDay(w.assigned_at[`skill:${s.id}`])}`}>NEW</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</div>
                           {s.teaching_notes && <div className="ci-notes">{s.teaching_notes}</div>}
                           {prereqText(s, skillById) && <div className="ci-prereq">Before this: {prereqText(s, skillById)}</div>}
                           {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
@@ -147,10 +151,13 @@ export default function AthleteView({ athleteId }) {
             </Disclosure>
           );
         })}
+          </TypeSection>
+        ))}
 
         {assignedCombos.length > 0 && (
+          <TypeSection name="Combos & routines" cls="combos" count={`${assignedCombos.length}`}>
           <section className="card combos-section">
-            <h2><Icon name="bolt" /> Combos & routines <span className="count">optional</span></h2>
+            <p className="muted small">Optional — try these when you’re ready.</p>
             {[['Combos', comboList], ['Routines', routines]].map(([label, list]) => list.length > 0 && (
               <div key={label}>
                 <h3>{label}</h3>
@@ -180,17 +187,19 @@ export default function AthleteView({ athleteId }) {
               </div>
             ))}
           </section>
+          </TypeSection>
         )}
       </div>}
 
-      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint }} skillById={skillById} videoBoard={board} />
+      <History w={w} lastPrinted={w.last_printed_at} />
+      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, fresh }} skillById={skillById} videoBoard={board} />
       {video && <VideoModal url={video.url} title={video.title} onClose={() => setVideo(null)} />}
     </div>
   );
 }
 
 /** Video board (older athletes): families as cards with the whole video and each skill's clip — no checklist. */
-function VideoBoard({ skills, all, combos, onPlay, skillById }) {
+function VideoBoard({ skills, all, combos, onPlay, skillById, fresh = new Set() }) {
   const buildsOn = buildsOnMap(all);
   const fams = buildTree(skills, all).flatMap((c) => c.subs.flatMap((s) => s.families.map((f) => ({ ...f, cat: c.name, sub: s.name }))));
   const wholeOf = (f) => {
@@ -200,8 +209,10 @@ function VideoBoard({ skills, all, combos, onPlay, skillById }) {
   };
   return (
     <div className="no-print">
+      {groupBy(fams, (f) => f.cat).map(([cat, list]) => (
+      <TypeSection key={cat} name={cat} count={`${list.length} famil${list.length === 1 ? 'y' : 'ies'}`}>
       <div className="vb-grid">
-        {fams.map((f) => {
+        {list.map((f) => {
           const whole = wholeOf(f);
           return (
             <article key={f.key} className={`card vb-card cat-${f.cat.toLowerCase()}`}>
@@ -216,7 +227,7 @@ function VideoBoard({ skills, all, combos, onPlay, skillById }) {
                     {s.video_url
                       ? <button className="vb-play" onClick={() => onPlay({ url: s.video_url, title: skillLabel(s) })} aria-label={`Watch ${skillLabel(s)}`}><Icon name="play" size={18} /></button>
                       : <span className="vb-play none" title="Video coming soon"><Icon name="play" size={18} /></span>}
-                    <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}
+                    <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}{fresh.has(`skill:${s.id}`) && <span className="tag new-tag">NEW</span>}
                       {prereqText(s, skillById) && <small className="vb-prereq">Before this: {prereqText(s, skillById)}</small>}
                       {s.leads_to && <small className="vb-next">→ Next skill: {familyName(s.leads_to)}</small>}</span>
                     <GifThumb url={s.gif_url} title={skillLabel(s)} size={44} />
@@ -227,10 +238,14 @@ function VideoBoard({ skills, all, combos, onPlay, skillById }) {
             </article>
           );
         })}
-        {combos.length > 0 && (
+      </div>
+      </TypeSection>
+      ))}
+      {combos.length > 0 && (
+      <TypeSection name="Combos & routines" cls="combos" count={`${combos.length}`}>
+      <div className="vb-grid">
           <article className="card vb-card vb-combos">
-            <div className="vb-head"><div className="grow"><h3><Icon name="bolt" size={18} /> Combos & routines</h3></div></div>
-            <ul className="vb-list">
+                        <ul className="vb-list">
               {combos.map((c) => (
                 <li key={c.id}>
                   {c.video_url
@@ -242,9 +257,72 @@ function VideoBoard({ skills, all, combos, onPlay, skillById }) {
               ))}
             </ul>
           </article>
-        )}
       </div>
+      </TypeSection>
+      )}
       {fams.length === 0 && combos.length === 0 && <Empty title="Nothing assigned yet" />}
     </div>
+  );
+}
+
+/** Dated log of what was added to / removed from this athlete's workout. */
+function History({ w, lastPrinted }) {
+  const [open, setOpen] = useState(false);
+  const days = [];
+  for (const h of w.history || []) {
+    const day = fmtDay(h.at);
+    let d = days[days.length - 1];
+    if (!d || d.day !== day) { d = { day, added: [], removed: [] }; days.push(d); }
+    d[h.action === 'removed' ? 'removed' : 'added'].push(h.item_name || h.item_id);
+  }
+  return (
+    <section className="card history no-print">
+      <div className="history-head" onClick={() => setOpen((x) => !x)} role="button" tabIndex={0}>
+        <h2>Workout history</h2>
+        <small className="muted">{lastPrinted ? `Last printed ${fmtDay(lastPrinted)}` : 'Not printed yet'}{w.history?.length ? ` · ${w.history.length} changes` : ''}</small>
+        <span className="push">{open ? 'Hide' : 'Show'}</span>
+      </div>
+      {open && (days.length === 0 ? <p className="muted">No changes recorded yet. Changes are tracked from now on.</p> : (
+        <ul className="history-list">
+          {days.map((d) => (
+            <li key={d.day}>
+              <b>{d.day}</b>
+              {d.added.length > 0 && <div className="h-added">+ Added: {d.added.join(', ')}</div>}
+              {d.removed.length > 0 && <div className="h-removed">− Removed: {d.removed.join(', ')}</div>}
+            </li>
+          ))}
+        </ul>
+      ))}
+    </section>
+  );
+}
+
+/** Keep order while grouping: [[key, items], …] */
+function groupBy(list, keyOf) {
+  const m = new Map();
+  for (const x of list) { const k = keyOf(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); }
+  return [...m];
+}
+
+/** Collapsible section per type (Manipulation, Multiples, Power, Combos & routines). Remembered on this device. */
+const TYPE_KEY = 'ropeworks.collapsedTypes';
+function TypeSection({ name, count, cls, children }) {
+  const [closed, setClosed] = useState(() => { try { return JSON.parse(localStorage.getItem(TYPE_KEY)) || []; } catch { return []; } });
+  const open = !closed.includes(name);
+  const toggle = () => {
+    const next = open ? [...closed, name] : closed.filter((x) => x !== name);
+    setClosed(next);
+    try { localStorage.setItem(TYPE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+  return (
+    <section className={`type-section cat-${cls || name.toLowerCase()}`}>
+      <button type="button" className={`type-head ${open ? 'open' : ''}`} onClick={toggle} aria-expanded={open}>
+        <span className="chev"><Icon name="chevron" /></span>
+        <h2>{name}</h2>
+        {count && <span className="count">{count}</span>}
+        <small className="muted push">{open ? 'Hide' : 'Show'}</small>
+      </button>
+      {open && <div className="type-body">{children}</div>}
+    </section>
   );
 }

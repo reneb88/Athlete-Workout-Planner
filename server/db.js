@@ -31,12 +31,22 @@ CREATE TABLE IF NOT EXISTS skills (
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS assignment_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+  item_type TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  item_name TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL,
+  at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS athletes (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   group_notes TEXT NOT NULL DEFAULT '',
   age TEXT NOT NULL DEFAULT '',
   view_style TEXT NOT NULL DEFAULT '',
+  last_printed_at TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS combos (
@@ -137,7 +147,7 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
@@ -383,6 +393,13 @@ class Store {
     return this.getAthlete(id);
   }
 
+  /** Remember when this athlete's checklist was last printed / made into a PDF. */
+  markPrinted(id) {
+    if (!this.getAthlete(id)) throw httpError(404, 'Athlete not found');
+    this.db.prepare("UPDATE athletes SET last_printed_at = datetime('now') WHERE id = ?").run(id);
+    return this.getAthlete(id);
+  }
+
   deleteAthlete(id) { return this.db.prepare('DELETE FROM athletes WHERE id = ?').run(id).changes > 0; }
 
   // ---------- Combos ----------
@@ -460,8 +477,15 @@ class Store {
     return {
       athlete_id: athleteId,
       skill_ids: d.prepare('SELECT skill_id FROM skill_assignments WHERE athlete_id = ?').all(athleteId).map((r) => r.skill_id),
+      // when each item was first given to this athlete (kept when the workout is re-saved)
+      assigned_at: Object.fromEntries([
+        ...d.prepare('SELECT skill_id AS id, assigned_at FROM skill_assignments WHERE athlete_id = ?').all(athleteId).map((r) => [`skill:${r.id}`, r.assigned_at]),
+        ...d.prepare('SELECT combo_id AS id, assigned_at FROM combo_assignments WHERE athlete_id = ?').all(athleteId).map((r) => [`combo:${r.id}`, r.assigned_at]),
+      ]),
       combos: d.prepare('SELECT combo_id, source FROM combo_assignments WHERE athlete_id = ?').all(athleteId)
         .map((r) => ({ id: r.combo_id, source: r.source })),
+      last_printed_at: this.getAthlete(athleteId).last_printed_at || '',
+      history: d.prepare('SELECT item_type, item_id, item_name, action, at FROM assignment_log WHERE athlete_id = ? ORDER BY id DESC LIMIT 300').all(athleteId),
       dismissed_ids: d.prepare('SELECT combo_id FROM combo_dismissals WHERE athlete_id = ?').all(athleteId).map((r) => r.combo_id),
       progress: d.prepare('SELECT item_type, item_id, completed_at FROM progress WHERE athlete_id = ?').all(athleteId),
     };
@@ -506,13 +530,28 @@ class Store {
         }
       }
 
+      // History: what was added / removed, and keep the original assigned date for what stays.
+      const prevDates = cur.assigned_at || {};
+      const name = (type, id) => {
+        if (type === 'combo') return d.prepare('SELECT name FROM combos WHERE id = ?').get(id)?.name || id;
+        const r = d.prepare('SELECT family, name, target FROM skills WHERE id = ?').get(id);
+        return r ? `${r.family}: ${r.name}${r.target ? ' – ' + r.target : ''}` : id;
+      };
+      const log = d.prepare('INSERT INTO assignment_log (athlete_id, item_type, item_id, item_name, action) VALUES (?, ?, ?, ?, ?)');
+      const oldSkills = new Set(cur.skill_ids);
+      const oldCombos = new Set(cur.combos.map((c) => c.id));
+      for (const s of skills) if (!oldSkills.has(s)) log.run(athleteId, 'skill', s, name('skill', s), 'added');
+      for (const s of oldSkills) if (!skills.has(s)) log.run(athleteId, 'skill', s, name('skill', s), 'removed');
+      for (const c of combos) if (!oldCombos.has(c)) log.run(athleteId, 'combo', c, name('combo', c), 'added');
+      for (const c of oldCombos) if (!combos.has(c)) log.run(athleteId, 'combo', c, name('combo', c), 'removed');
+
       d.prepare('DELETE FROM skill_assignments WHERE athlete_id = ?').run(athleteId);
       d.prepare('DELETE FROM combo_assignments WHERE athlete_id = ?').run(athleteId);
       d.prepare('DELETE FROM combo_dismissals WHERE athlete_id = ?').run(athleteId);
-      const ins = d.prepare('INSERT INTO skill_assignments (athlete_id, skill_id) VALUES (?, ?)');
-      for (const s of skills) ins.run(athleteId, s);
-      const insC = d.prepare('INSERT INTO combo_assignments (athlete_id, combo_id, source) VALUES (?, ?, ?)');
-      for (const c of combos) insC.run(athleteId, c, suggested.has(c) ? 'suggested' : 'manual');
+      const ins = d.prepare("INSERT INTO skill_assignments (athlete_id, skill_id, assigned_at) VALUES (?, ?, COALESCE(?, datetime('now')))");
+      for (const s of skills) ins.run(athleteId, s, prevDates[`skill:${s}`] || null);
+      const insC = d.prepare("INSERT INTO combo_assignments (athlete_id, combo_id, source, assigned_at) VALUES (?, ?, ?, COALESCE(?, datetime('now')))");
+      for (const c of combos) insC.run(athleteId, c, suggested.has(c) ? 'suggested' : 'manual', prevDates[`combo:${c}`] || null);
       const insD = d.prepare('INSERT INTO combo_dismissals (athlete_id, combo_id) VALUES (?, ?)');
       for (const c of dismissed) insD.run(athleteId, c);
     });

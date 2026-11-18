@@ -24,6 +24,7 @@ export const api = {
   reorderSkills: (ids) => req('POST', '/api/skills/reorder', { ids }),
   createAthlete: (a) => req('POST', '/api/athletes', a),
   updateAthlete: (id, a) => req('PUT', `/api/athletes/${encodeURIComponent(id)}`, a),
+  markPrinted: (ids) => req('POST', '/api/athletes/printed', { ids }),
   deleteAthlete: (id) => req('DELETE', `/api/athletes/${encodeURIComponent(id)}`),
   createCombo: (c) => req('POST', '/api/combos', c),
   updateCombo: (id, c) => req('PUT', `/api/combos/${encodeURIComponent(id)}`, c),
