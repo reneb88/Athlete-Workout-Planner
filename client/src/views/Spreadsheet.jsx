@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, FamilySelect, Icon, Modal, SearchBox, Seg, useApp } from '../components.jsx';
-import { CATEGORIES, buildTree, matchesSearch } from '../util.js';
+import { CATEGORIES, buildTree, familyHomes, homeOf, matchesSearch } from '../util.js';
 
 /*
  * Spreadsheet-style editor. Every cell is editable in place; a change is saved when you
@@ -72,14 +72,14 @@ export default function Spreadsheet() {
       const ids = f.skills.map((x) => x.id);
       f.skills.forEach((x, i) => { byId[x.id] = { ids, pos: i + 1, first: i === 0 }; flat.push(x); });
     }
-    return { byId, flat };
+    return { byId, flat, homes: familyHomes(skills) };
   }, [skills]);
 
   const cfg = {
     skills: {
       cols: SKILL_COLS,
       rows: (order === 'progression' ? groups.flat : skills)
-        .filter((s) => (cat === 'all' || s.category === cat) && matchesSearch(s, q))
+        .filter((s) => (cat === 'all' || homeOf(groups.homes, s)?.category === cat) && matchesSearch(s, q))
         .map((s) => ({ ...s, sequence: groups.byId[s.id]?.pos ?? s.sequence })),
       save: (id, patch) => api.updateSkill(id, patch),
       add: () => api.createSkill({ category: cat === 'all' ? 'Manipulation' : cat, subcategory: '', family: '', name: 'New challenge' }),
@@ -212,7 +212,7 @@ export default function Spreadsheet() {
                   return (
                     <td key={col.key}>
                       {col.family ? (
-                        <FamilySelect className="" value={v} skills={skills} exclude={`${row.category}|${row.subcategory}|${row.family}`}
+                        <FamilySelect className="" value={v} skills={skills} exclude={row.family}
                           label={`${col.label} for ${row.id}`} onChange={(val) => commit(row, col, val)} />
                       ) : col.options ? (
                         <select value={v} onChange={(e) => commit(row, col, e.target.value)} aria-label={col.label}>

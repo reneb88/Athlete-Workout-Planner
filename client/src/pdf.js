@@ -1,4 +1,4 @@
-import { buildTree, skillLabel } from './util.js';
+import { buildTree, isVariant, skillLabel } from './util.js';
 
 const NAVY = [11, 30, 58];
 const ORANGE = [255, 90, 31];
@@ -35,16 +35,16 @@ export async function exportPdfMany(sheets, { showNotes = true, filename } = {})
   };
 
   sheets.forEach((sheet, idx) => {
-    const { skills, combos, done, comboByCheckpoint } = sheet;
+    const { skills, combos, done, comboByCheckpoint, all = skills } = sheet;
     athlete = sheet.athlete;
     if (idx > 0) doc.addPage();
     const body = [];
-    for (const c of buildTree(skills).filter((x) => x.subs.length)) {
+    for (const c of buildTree(skills, all).filter((x) => x.subs.length)) {
       body.push([{ content: c.name.toUpperCase(), colSpan: 3, styles: { fillColor: CAT_COLORS[c.name] || NAVY, textColor: 255, fontStyle: 'bold', fontSize: 11 } }]);
       for (const s of c.subs) for (const f of s.families) {
         body.push([{ content: `${f.name}   ·   ${s.name}`, colSpan: 3, styles: { fillColor: [236, 240, 247], textColor: NAVY, fontStyle: 'bold' } }]);
         for (const sk of f.skills) {
-          body.push([done.has(`skill:${sk.id}`) ? 'X' : '', skillLabel(sk), showNotes ? sk.teaching_notes || '' : '']);
+          body.push([done.has(`skill:${sk.id}`) ? 'X' : '', skillLabel(sk) + (isVariant(sk, f) ? `  (${sk.subcategory || sk.category})` : ''), showNotes ? sk.teaching_notes || '' : '']);
           for (const cb of comboByCheckpoint[sk.id] || []) {
             body.push([done.has(`combo:${cb.id}`) ? 'X' : '', { content: `Can you do this? Try this combo!  ${cb.name}`, styles: { textColor: ORANGE, fontStyle: 'bolditalic' } }, cb.notes || '']);
           }

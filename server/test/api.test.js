@@ -118,18 +118,18 @@ test('API requires the coach password', async () => {
 
 test('"Try" steps link to the family they lead to', async () => {
   const s = await fresh();
-  assert.equal(s.getSkill('S004').leads_to, 'Manipulation|Starters|Basic bounce');
-  assert.equal(s.getSkill('S008').leads_to, 'Multiples|Doubles|Double under');
+  assert.equal(s.getSkill('S004').leads_to, 'Basic bounce');
+  assert.equal(s.getSkill('S008').leads_to, 'Double under');
   assert.equal(s.getSkill('S202').leads_to, ''); // "Try CC #1": no CC family
   s.updateSkill('S202', { leads_to: 'Spiderman' });
-  assert.equal(s.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+  assert.equal(s.getSkill('S202').leads_to, 'Spiderman');
   // round-trips through export/import
   const b = openDb(':memory:');
   b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
-  assert.equal(b.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+  assert.equal(b.getSkill('S202').leads_to, 'Spiderman');
   // importing a workbook without a "Leads to" column keeps links made in the app
   b.importData({ skills: [{ id: 'S202', category: 'Manipulation', subcategory: 'Arm Action/Crosses', family: 'Cross', name: 'Try CC #1' }] });
-  assert.equal(b.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+  assert.equal(b.getSkill('S202').leads_to, 'Spiderman');
 });
 
 test('re-importing an exported workbook does not duplicate templates', async () => {
@@ -159,4 +159,17 @@ test('a videos-only sheet (ID + Video URL) updates just the videos', async () =>
   assert.equal(t.name, 'Toad');
   assert.equal(s.getSkill('S111').video_url, 'https://vimeo.com/120907342?t=25');
   assert.equal(s.snapshot().skills.length, 240);
+});
+
+test('a family is one progression across categories', async () => {
+  const s = await fresh();
+  const seq = (fam) => s.snapshot().skills.filter((x) => x.family.toLowerCase() === fam).sort((a, b) => a.sequence - b.sequence)
+    .map((x) => `${x.sequence}:${x.id}`).join(' ');
+  // 360 turn: Manipulation steps then the Multiples doubles/triples, numbered 1..6
+  assert.equal(seq('360 turn'), '1:S016 2:S017 3:S018 4:S019 5:S020 6:S021');
+  // renaming a step's family moves it to the end of that family
+  s.updateSkill('S021', { family: 'Toad' });
+  assert.equal(s.getSkill('S021').sequence, 8); // Toad has 7 steps (6 Leg Overs + 1 double)
+  // new steps go to the end of the family, whatever their category
+  assert.equal(s.createSkill({ category: 'Multiples', subcategory: 'Doubles', family: '360 turn', name: '360 double cross' }).sequence, 6);
 });

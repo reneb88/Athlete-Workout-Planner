@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
-import { CATEGORIES, buildTree, buildsOnMap, familyKey, familyName, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
   const { skills, combos, run } = useApp();
@@ -23,11 +23,12 @@ export default function Library() {
     return m;
   }, [combos]);
 
+  const homes = useMemo(() => familyHomes(skills), [skills]);
   const filtered = useMemo(() => skills.filter((s) =>
-    (cat === 'all' || s.category === cat) && matchesSearch(s, q) &&
+    (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q) &&
     (flag === 'all' || (flag === 'review' && s.review_notes) || (flag === 'video' && s.video_url) ||
-      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]))), [skills, cat, q, flag, comboBySkill]);
-  const nodes = useMemo(() => buildTree(filtered).filter((c) => c.subs.length), [filtered]);
+      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]))), [skills, homes, cat, q, flag, comboBySkill]);
+  const nodes = useMemo(() => buildTree(filtered, skills).filter((c) => c.subs.length), [filtered, skills]);
   const searching = q.trim() || flag !== 'all';
   const isOpen = (k) => searching || tree.isOpen(k);
 
@@ -90,7 +91,7 @@ export default function Library() {
                       <li key={sk.id} className="skill-row">
                         <span className="seq">{i + 1}</span>
                         <div className="skill-main" onClick={() => setEditing(sk)}>
-                          <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}</div>
+                          <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
                           <div className="skill-meta">
                             <span className="pill">{sk.id}</span>
                             {sk.related && <span className="tag">Related: {sk.related}</span>}
@@ -139,11 +140,12 @@ function SkillEditor({ skill, onClose }) {
     prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', ...skill,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
-  const subs = [...new Set(buildTree(skills.filter((s) => s.category === f.category)).flatMap((c) => c.subs.map((x) => x.name)))];
-  const fams = [...new Set(skills.filter((s) => s.category === f.category && s.subcategory === f.subcategory).map((s) => s.family))];
+  const subs = [...new Set(skills.filter((s) => s.category === f.category).sort((a, b) => a.sort_order - b.sort_order).map((s) => s.subcategory).filter(Boolean))];
+  // Any family can be chosen: a family is one progression across categories (e.g. 360 doubles belong to 360).
+  const homes = familyHomes(skills);
+  const fams = [...homes.values()].map((h) => h.name).sort((a, b) => a.localeCompare(b));
   // Steps already in the chosen family, so a new line can go in the right place.
-  const famSteps = skills.filter((s) => s.category === f.category && s.subcategory === f.subcategory && s.family === f.family && s.id !== skill.id)
-    .sort((a, b) => a.sequence - b.sequence || a.id.localeCompare(b.id));
+  const famSteps = f.family.trim() ? familySkills(skills, f.family).filter((s) => s.id !== skill.id) : [];
   const [after, setAfter] = useState('end');
   const linked = combos.filter((c) => c.checkpoints.includes(skill.id));
 
@@ -167,17 +169,22 @@ function SkillEditor({ skill, onClose }) {
         <button className="btn primary" disabled={!f.name.trim() || !f.category || !f.family.trim()} onClick={save}>Save</button></>}>
       <div className="form-grid">
         <Field label="Master category">
-          <select className="select" value={f.category} onChange={(e) => setF((x) => ({ ...x, category: e.target.value, subcategory: '', family: '' }))}>
+          <select className="select" value={f.category} onChange={(e) => setF((x) => ({ ...x, category: e.target.value, subcategory: '' }))}>
             {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
         </Field>
         <Field label="Subcategory">
           <PickOrNew value={f.subcategory} options={subs} placeholder="New subcategory name" what="subcategory"
-            onChange={(v) => setF((x) => ({ ...x, subcategory: v, family: '' }))} />
+            onChange={(v) => setF((x) => ({ ...x, subcategory: v }))} />
         </Field>
         <Field label="Skill family">
-          <PickOrNew value={f.family} options={fams} placeholder="New family name" what="family" disabled={!f.subcategory}
-            onChange={(v) => { setF((x) => ({ ...x, family: v })); setAfter('end'); }} />
+          <PickOrNew value={f.family} options={fams} placeholder="New family name" what="family"
+            onChange={(v) => {
+              const h = homes.get(v.trim().toLowerCase());
+              // New step with no subcategory yet: start from where the family lives (change it for a double, etc.)
+              setF((x) => ({ ...x, family: v, ...(isNew && h && !x.subcategory ? { category: h.category, subcategory: h.subcategory } : {}) }));
+              setAfter('end');
+            }} />
         </Field>
         <Field label="Challenge / progression step"><input value={f.name} onChange={set('name')} autoFocus={isNew && !!skill.family} placeholder="e.g. Toad double" /></Field>
         {isNew && famSteps.length > 0 && (
@@ -205,7 +212,7 @@ function SkillEditor({ skill, onClose }) {
         <SkillPicker value={f.prerequisites} onChange={set('prerequisites')} exclude={skill.id} placeholder="Search for a prerequisite skill…" />
       </Field>
       <Field label="Leads to (next skill family)" hint="For “Try …” steps: when this step is assigned, the coach is offered this family’s whole progression.">
-        <FamilySelect value={f.leads_to} onChange={set('leads_to')} skills={skills} exclude={f.category ? familyKey(f) : undefined} />
+        <FamilySelect value={f.leads_to} onChange={set('leads_to')} skills={skills} exclude={f.family} />
       </Field>
       <div className="form-grid two">
         <Field label="Teaching notes / cues"><textarea rows={4} value={f.teaching_notes} onChange={set('teaching_notes')} /></Field>

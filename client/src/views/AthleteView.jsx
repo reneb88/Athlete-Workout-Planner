@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { buildTree, buildsOnMap, familyKey, familyName, skillLabel, splitVideo } from '../util.js';
+import { buildTree, buildsOnMap, famId, familyKey, familyName, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -31,7 +31,7 @@ export default function AthleteView({ athleteId }) {
   }, [combos, w]);
 
   const shown = assignedSkills.filter((s) => filter === 'all' || (filter === 'todo') !== done.has(`skill:${s.id}`));
-  const nodes = buildTree(shown).filter((c) => c.subs.length);
+  const nodes = buildTree(shown, app.skills).filter((c) => c.subs.length);
   const families = nodes.flatMap((c) => c.subs.flatMap((s) => s.families.map((f) => ({ ...f, category: c.name, sub: s.name }))));
 
   // Families default to open on first view
@@ -72,7 +72,7 @@ export default function AthleteView({ athleteId }) {
             <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
             <button className="btn sm" onClick={() => window.print()}><Icon name="print" size={18} /> Print</button>
             <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
-            <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint })}><Icon name="file" size={18} /> PDF</button>
+            <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills })}><Icon name="file" size={18} /> PDF</button>
             <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function AthleteView({ athleteId }) {
         {families.length === 0 && assignedSkills.length > 0 && <Empty title={filter === 'done' ? 'Nothing checked off yet' : 'Everything is done — nice work!'} />}
         {families.map((f) => {
           const n = f.skills.length;
-          const allSkillsInFam = assignedSkills.filter((s) => s.category === f.category && s.subcategory === f.sub && s.family === f.name);
+          const allSkillsInFam = assignedSkills.filter((s) => famId(s) === famId(f.skills[0]));
           const d = allSkillsInFam.filter((s) => done.has(`skill:${s.id}`)).length;
           return (
             <Disclosure key={f.key} level={2} open={tree.isOpen(f.key)} onToggle={() => tree.toggle(f.key)} className={`fam-card cat-${f.category.toLowerCase()}`}
@@ -106,7 +106,7 @@ export default function AthleteView({ athleteId }) {
                       <div className={`check-item ${on ? 'on' : ''}`} onClick={() => toggle('skill', s.id, !on)}>
                         <Check size="lg" checked={on} onChange={(v) => toggle('skill', s.id, v)} label={skillLabel(s)} />
                         <div className="grow">
-                          <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}</div>
+                          <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</div>
                           {s.teaching_notes && <div className="ci-notes">{s.teaching_notes}</div>}
                           {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
                         </div>

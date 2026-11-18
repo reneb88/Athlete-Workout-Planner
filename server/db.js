@@ -103,11 +103,18 @@ export function openDb(file) {
     store.autoLinkTry();
     db.prepare("INSERT INTO settings (key, value) VALUES ('autolink_try_v1', '1')").run();
   }
+  // One time: a skill family is one progression across categories (same family name = same family).
+  if (!db.prepare("SELECT 1 FROM settings WHERE key = 'family_v2'").get()) {
+    store.migrateFamiliesV2();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('family_v2', '1')").run();
+  }
   return store;
 }
 
 const normName = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9#]+/g, ' ').trim();
-export const familyKey = (s) => [s.category, s.subcategory || '', s.family || ''].join('|');
+/** Family identity: the family name, case-insensitive, regardless of category. */
+const famKey = (name) => String(name || '').trim().toLowerCase();
+const lastPart = (ref) => String(ref || '').split(/[|›]/).pop().trim();
 
 function tx(db, fn) {
   db.exec('BEGIN');
@@ -192,12 +199,7 @@ class Store {
     if (!('sort_order' in s)) {
       s.sort_order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM skills').get().m ?? 0) + 1;
     }
-    if (!('sequence' in s)) {
-      const m = this.db.prepare(
-        'SELECT MAX(sequence) AS m FROM skills WHERE category = ? AND subcategory = ? AND family = ?')
-        .get(s.category, s.subcategory || '', s.family || '').m;
-      s.sequence = (m ?? 0) + 1;
-    }
+    if (!('sequence' in s)) s.sequence = this.nextStep(s.family);
     const cols = ['id', ...Object.keys(s)];
     this.db.prepare(`INSERT INTO skills (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`)
       .run(id, ...Object.values(s));
@@ -209,6 +211,8 @@ class Store {
     if (!cur) throw httpError(404, 'Skill not found');
     const s = normalizeSkill(input);
     if (s.leads_to) s.leads_to = this.resolveFamily(s.leads_to, { ...cur, ...s });
+    // Moved to another family: it joins the end of that family's progression.
+    if ('family' in s && famKey(s.family) !== famKey(cur.family) && !('sequence' in s)) s.sequence = this.nextStep(s.family, id);
     const keys = Object.keys(s);
     if (keys.length) {
       this.db.prepare(`UPDATE skills SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
@@ -224,6 +228,33 @@ class Store {
     });
   }
 
+  /** Next free step number at the end of a family (any category). */
+  nextStep(family, exceptId = '') {
+    const m = this.db.prepare('SELECT MAX(sequence) AS m FROM skills WHERE lower(trim(family)) = ? AND id != ?').get(famKey(family), exceptId).m;
+    return (m ?? 0) + 1;
+  }
+
+  /** Renumber every family 1..n across categories (keeping the current order); store "Leads to" as a family name. */
+  migrateFamiliesV2() {
+    tx(this.db, () => {
+      for (const r of this.db.prepare("SELECT id, leads_to FROM skills WHERE leads_to != ''").all()) {
+        this.db.prepare('UPDATE skills SET leads_to = ? WHERE id = ?').run(this.resolveFamily(r.leads_to), r.id);
+      }
+      this.renumberFamilies();
+    });
+  }
+
+  renumberFamilies() {
+    const groups = new Map();
+    for (const r of this.db.prepare('SELECT id, family FROM skills ORDER BY sequence, sort_order, id').all()) {
+      const k = famKey(r.family);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r.id);
+    }
+    const st = this.db.prepare('UPDATE skills SET sequence = ? WHERE id = ?');
+    for (const ids of groups.values()) ids.forEach((id, i) => st.run(i + 1, id));
+  }
+
   // Reorder: given an ordered list of skill IDs (e.g. one family), rewrite their sequence 1..n
   reorderSkills(ids) {
     tx(this.db, () => {
@@ -233,25 +264,17 @@ class Store {
   }
 
   /**
-   * Turn a family reference into a family key "Category|Subcategory|Family".
-   * Accepts a key, "Category › Subcategory › Family", or just a family name (then the family closest to
-   * `from` wins: same subcategory, then same category, then any). Returns '' if no such family exists.
+   * Turn a family reference into the family's name as written in the library ('' if no such family).
+   * Accepts a name, or older "Category|Subcategory|Family" / "Category › Subcategory › Family" forms.
+   * A step can't lead to its own family.
    */
   resolveFamily(ref, from = {}) {
-    const raw = str(ref);
-    if (!raw) return '';
-    const fams = this.db.prepare('SELECT DISTINCT category, subcategory, family FROM skills').all();
-    const parts = raw.includes('|') ? raw.split('|') : raw.includes('›') ? raw.split('›') : null;
-    if (parts && parts.length === 3) {
-      const [c, sub, f] = parts.map((x) => normName(x));
-      const hit = fams.find((x) => normName(x.category) === c && normName(x.subcategory) === sub && normName(x.family) === f);
-      return hit ? familyKey(hit) : '';
-    }
-    const want = normName(raw);
-    const cands = fams.filter((x) => normName(x.family) === want && familyKey(x) !== familyKey(from));
-    const pick = cands.find((x) => x.category === from.category && x.subcategory === from.subcategory)
-      || cands.find((x) => x.category === from.category) || cands[0];
-    return pick ? familyKey(pick) : '';
+    const want = normName(lastPart(ref));
+    if (!want) return '';
+    const hit = this.db.prepare('SELECT family FROM skills ORDER BY sequence, sort_order').all()
+      .find((x) => normName(x.family) === want);
+    if (!hit || (from.family && famKey(hit.family) === famKey(from.family))) return '';
+    return hit.family.trim();
   }
 
   /** Fill in "Leads to" for "Try X" steps whose X matches an existing skill family (only where it's empty). */
@@ -489,6 +512,7 @@ class Store {
         if (sk) this.db.prepare('UPDATE skills SET leads_to = ? WHERE id = ?').run(this.resolveFamily(raw.leads_to, sk), sk.id);
       }
       if ((data.skills || []).length) this.autoLinkTry();
+      if ((data.skills || []).some((r) => 'sequence' in r || 'family' in r)) this.renumberFamilies();
       const upAth = d.prepare(`INSERT INTO athletes (id, name, group_notes, age, sort_order) VALUES (?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET name=excluded.name, group_notes=excluded.group_notes, age=excluded.age, sort_order=excluded.sort_order`);
       (data.athletes || []).forEach((a, i) => {

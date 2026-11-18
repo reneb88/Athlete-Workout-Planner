@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
-import { CATEGORIES, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyWhere, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 
 const emptyWork = () => ({ skills: new Set(), manual: new Set(), dismissed: new Set() });
@@ -107,8 +107,9 @@ export default function Designer({ initialAthlete }) {
   const keepCombo = (id) => mutate((w) => { w.dismissed.delete(id); });
   const addCombo = (id) => mutate((w) => { w.manual.add(id); w.dismissed.delete(id); });
 
-  const filtered = useMemo(() => skills.filter((s) => (cat === 'all' || s.category === cat) && matchesSearch(s, q)), [skills, cat, q]);
-  const nodes = useMemo(() => buildTree(filtered).filter((c) => c.subs.length), [filtered]);
+  const homes = useMemo(() => familyHomes(skills), [skills]);
+  const filtered = useMemo(() => skills.filter((s) => (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q)), [skills, homes, cat, q]);
+  const nodes = useMemo(() => buildTree(filtered, skills).filter((c) => c.subs.length), [filtered, skills]);
   const searching = !!q.trim();
   const isOpen = (k) => searching || tree.isOpen(k);
 
@@ -157,7 +158,7 @@ export default function Designer({ initialAthlete }) {
   const groups = [...new Set(athletes.map((a) => a.group_notes).filter(Boolean))];
 
   // Selected challenges grouped by family for the summary panel
-  const summary = useMemo(() => buildTree([...work.skills].map((id) => skillById[id]).filter(Boolean)).filter((c) => c.subs.length), [work.skills, skillById]);
+  const summary = useMemo(() => buildTree([...work.skills].map((id) => skillById[id]).filter(Boolean), skills).filter((c) => c.subs.length), [work.skills, skillById, skills]);
   const allKeys = nodes.flatMap((c) => [c.key, ...c.subs.flatMap((s) => [s.key, ...s.families.map((f) => f.key)])]);
 
   return (
@@ -252,7 +253,7 @@ export default function Designer({ initialAthlete }) {
                                     <Check checked={on} onChange={(v) => setSkills([sk.id], v)} label={skillLabel(sk)} />
                                     <span className="seq">{i + 1}</span>
                                     <div className="skill-main">
-                                      <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}</div>
+                                      <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
                                       {sk.leads_to && <div className="skill-meta"><span className="tag next">→ Leads to {familyName(sk.leads_to)}</span></div>}
                                       {checkpointMap[sk.id] && (
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
@@ -330,7 +331,7 @@ export default function Designer({ initialAthlete }) {
                     <div className="grow">
                       <div className="cs-after">After “{n.from.name}”</div>
                       <div className="cs-name">{familyName(n.key)}</div>
-                      <div className="cs-after">{familyWhere(n.key)} · {n.ids.length} steps</div>
+                      <div className="cs-after">{familyWhere(n.key, skills)} · {n.ids.length} steps</div>
                     </div>
                     {have === n.ids.length
                       ? <span className="added"><Icon name="check" size={18} /> Added</span>

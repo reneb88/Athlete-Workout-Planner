@@ -1,37 +1,63 @@
 export const CATEGORIES = ['Manipulation', 'Multiples', 'Power'];
 
+/** Family identity: same family name (any category) = one progression. */
+export const famId = (s) => String((s && s.family) || 'General').trim().toLowerCase();
+
 /**
- * Build Category → Subcategory → Family → [skills] tree.
- * Subcategories and families keep their first-appearance order from the library;
- * challenges within a family are ordered by sequence.
+ * Where each family "lives": the category/subcategory of its first step (normally the manipulation
+ * core skill). Multiples variants of that skill appear inside the same family.
  */
-export function buildTree(skills) {
+export function familyHomes(all) {
+  const homes = new Map();
+  for (const s of all) {
+    const k = famId(s);
+    const h = homes.get(k);
+    if (!h || s.sequence < h.sequence || (s.sequence === h.sequence && s.sort_order < h.sort_order)) {
+      homes.set(k, { category: s.category, subcategory: s.subcategory || 'General', name: (s.family || 'General').trim(), sequence: s.sequence, sort_order: s.sort_order, first: s.sort_order });
+    }
+  }
+  for (const s of all) { const h = homes.get(famId(s)); if (s.sort_order < h.first) h.first = s.sort_order; }
+  return homes;
+}
+export const homeOf = (homes, s) => homes.get(famId(s));
+
+/**
+ * Build Category → Subcategory → Family → [skills] tree. Each family is one progression shown under
+ * its home category/subcategory (computed from `all`, so filtering doesn't move families around);
+ * its steps are ordered by sequence across categories.
+ */
+export function buildTree(skills, all = skills) {
+  const homes = familyHomes(all.length ? all : skills);
   const cats = new Map(CATEGORIES.map((c) => [c, new Map()]));
-  const sorted = [...skills].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id));
-  for (const s of sorted) {
-    if (!cats.has(s.category)) cats.set(s.category, new Map());
-    const subs = cats.get(s.category);
-    const sub = s.subcategory || 'General';
-    if (!subs.has(sub)) subs.set(sub, new Map());
-    const fams = subs.get(sub);
-    const fam = s.family || 'General';
-    if (!fams.has(fam)) fams.set(fam, []);
-    fams.get(fam).push(s);
+  const byFam = new Map();
+  for (const s of skills) {
+    const k = famId(s);
+    if (!byFam.has(k)) byFam.set(k, []);
+    byFam.get(k).push(s);
+  }
+  const fams = [...byFam.entries()].map(([k, list]) => ({ k, list, home: homes.get(k) || familyHomes(list).get(k) }))
+    .sort((a, b) => a.home.first - b.home.first);
+  for (const { k, list, home } of fams) {
+    if (!cats.has(home.category)) cats.set(home.category, new Map());
+    const subs = cats.get(home.category);
+    if (!subs.has(home.subcategory)) subs.set(home.subcategory, []);
+    subs.get(home.subcategory).push({
+      key: `f:${k}`,
+      name: home.name,
+      category: home.category,
+      subcategory: home.subcategory,
+      skills: list.sort((a, b) => a.sequence - b.sequence || a.sort_order - b.sort_order || a.id.localeCompare(b.id)),
+    });
   }
   return [...cats].map(([category, subs]) => ({
     key: `c:${category}`,
     name: category,
-    subs: [...subs].map(([sub, fams]) => ({
-      key: `s:${category}|${sub}`,
-      name: sub,
-      families: [...fams].map(([fam, list]) => ({
-        key: `f:${category}|${sub}|${fam}`,
-        name: fam,
-        skills: list.sort((a, b) => a.sequence - b.sequence || a.id.localeCompare(b.id)),
-      })),
-    })),
+    subs: [...subs].map(([sub, families]) => ({ key: `s:${category}|${sub}`, name: sub, families })),
   }));
 }
+
+/** True if a step sits in a different category/subcategory than its family's home (e.g. a double in a manipulation family). */
+export const isVariant = (s, f) => s.category !== f.category || (s.subcategory || 'General') !== f.subcategory;
 
 export const idsOfFamily = (f) => f.skills.map((s) => s.id);
 export const idsOfSub = (s) => s.families.flatMap(idsOfFamily);
@@ -154,21 +180,23 @@ export const isVimeo = (url) => !!vimeoInfo(url);
 
 export const isDirectVideo = (url) => /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url || '');
 
-/** "Category|Subcategory|Family" — how a skill's "Leads to" points at a family. */
-export const familyKey = (s) => [s.category, s.subcategory || '', s.family || ''].join('|');
-export const familyName = (key) => (key ? key.split('|')[2] || '' : '');
-export const familyWhere = (key) => (key ? key.split('|').slice(0, 2).filter(Boolean).join(' › ') : '');
+/** "Leads to" stores a family name. (Older data stored "Category|Subcategory|Family"; the last part is the name.) */
+export const familyName = (ref) => (ref ? String(ref).split('|').pop().trim() : '');
+export const familyKey = (s) => famId(s);
+const refId = (ref) => familyName(ref).toLowerCase();
+/** "Category › Subcategory" where a family lives. */
+export const familyWhere = (ref, skills = []) => {
+  const h = familyHomes(skills).get(refId(ref));
+  return h ? `${h.category} › ${h.subcategory}` : '';
+};
 /** Skills in a family, in step order. */
-export const familySkills = (skills, key) => skills.filter((s) => familyKey(s) === key)
-  .sort((a, b) => a.sequence - b.sequence || a.id.localeCompare(b.id));
+export const familySkills = (skills, ref) => skills.filter((s) => famId(s) === refId(ref))
+  .sort((a, b) => a.sequence - b.sequence || a.sort_order - b.sort_order || a.id.localeCompare(b.id));
 /** All families, for pickers: [{ category, families: [{ key, name, where, count }] }] */
 export function familyOptions(skills) {
   return buildTree(skills).map((c) => ({
     category: c.name,
-    families: c.subs.flatMap((sub) => sub.families.map((f) => {
-      const key = familyKey(f.skills[0]);
-      return { key, name: f.name, where: `${c.name} › ${sub.name}`, count: f.skills.length };
-    })),
+    families: c.subs.flatMap((sub) => sub.families.map((f) => ({ key: f.name, name: f.name, where: `${c.name} › ${sub.name}`, count: f.skills.length }))),
   })).filter((c) => c.families.length);
 }
 
@@ -177,8 +205,9 @@ export function buildsOnMap(skills) {
   const m = {};
   for (const s of skills) {
     if (!s.leads_to) continue;
-    const from = s.family || 'General';
-    const list = (m[s.leads_to] ||= []);
+    const k = refId(s.leads_to);
+    const from = (s.family || 'General').trim();
+    const list = (m[k] ||= []);
     if (!list.includes(from)) list.push(from);
   }
   return m;
