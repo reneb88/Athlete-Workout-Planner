@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
+import FamilyVideo from '../FamilyVideo.jsx';
 import { CATEGORIES, buildTree, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
@@ -12,6 +13,7 @@ export default function Library() {
   const [editing, setEditing] = useState(null); // skill object or {new defaults}
   const [deleting, setDeleting] = useState(null);
   const [video, setVideo] = useState(null);
+  const [famVideo, setFamVideo] = useState(null);
   const tree = useOpenSet(['c:Manipulation']);
 
   const comboBySkill = useMemo(() => {
@@ -78,7 +80,9 @@ export default function Library() {
               {s.families.map((f) => (
                 <Disclosure key={f.key} level={2} open={isOpen(f.key)} onToggle={() => tree.toggle(f.key)}
                   header={<><h4>{f.name}</h4><span className="count">{f.skills.length}</span>
-                    <button className="btn ghost sm push" onClick={(e) => { e.stopPropagation(); setEditing({ category: c.name, subcategory: s.name, family: f.name }); }}>
+                    <button className="btn ghost sm push" onClick={(e) => { e.stopPropagation(); setFamVideo(f); }}>
+                      <Icon name="play" size={16} /> Family video</button>
+                    <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing({ category: c.name, subcategory: s.name, family: f.name }); }}>
                       <Icon name="plus" size={18} /> Add step</button></>}>
                   <ol className="skill-list">
                     {f.skills.map((sk, i) => (
@@ -120,6 +124,7 @@ export default function Library() {
           onConfirm={() => run(() => api.deleteSkill(deleting.id), 'Challenge deleted')} onClose={() => setDeleting(null)} />
       )}
       {video && <VideoModal url={video.video_url} title={skillLabel(video)} onClose={() => setVideo(null)} />}
+      {famVideo && <FamilyVideo family={famVideo} onClose={() => setFamVideo(null)} />}
     </div>
   );
 }

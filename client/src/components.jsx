@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { embedUrl, isDirectVideo } from './util.js';
+import { embedUrl, formatTime, isDirectVideo, splitVideo } from './util.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -64,8 +64,10 @@ export function Modal({ title, onClose, children, footer, wide }) {
 
 export function VideoModal({ url, title, onClose }) {
   const src = embedUrl(url);
+  const { start, end } = splitVideo(url);
   return (
     <Modal title={title} onClose={onClose} wide>
+      {(start || end) && <p className="muted small">Plays {formatTime(start || 0)}{end ? `–${formatTime(end)}` : ' onwards'}</p>}
       {src ? (
         isDirectVideo(src)
           ? <video className="video-frame" src={src} controls autoPlay playsInline />

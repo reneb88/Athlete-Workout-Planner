@@ -222,6 +222,14 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .batch-chip.done { border-color: var(--ok); color: var(--ok); background: #effaf5; }
 .batch-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
 
+.fv-table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; }
+.fv-table th { text-align: left; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); padding: 6px; }
+.fv-table td { padding: 6px; border-top: 1px solid var(--line-2); vertical-align: middle; }
+.fv-table .seq-cell { width: 40px; }
+.time-in { width: 110px !important; text-align: center; font-weight: 700; }
+.time-in.invalid { border-color: var(--err) !important; background: #fee2e2 !important; }
+.opt input[type=checkbox] { width: 22px; height: 22px; }
+
 /* ---------- Lists / modals ---------- */
 .list-pick { display: flex; flex-direction: column; gap: 6px; }
 .list-row { display: flex; gap: 6px; align-items: center; }

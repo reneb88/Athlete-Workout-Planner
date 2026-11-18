@@ -48,25 +48,88 @@ export function skillLabel(s) {
   return s ? `${s.name}${s.target ? ` – ${s.target}` : ''}` : '';
 }
 
-/** Turn a YouTube / Vimeo link into an embeddable URL; null if not embeddable. */
+/** "83", "83s", "1:23", "1m23s", "1h2m3s" → seconds (null if blank/invalid). */
+export function parseTime(v) {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim().toLowerCase();
+  if (!t) return null;
+  if (/^\d+(\.\d+)?s?$/.test(t)) return Math.round(parseFloat(t));
+  if (/^\d+(:\d{1,2}){1,2}$/.test(t)) return t.split(':').reduce((a, n) => a * 60 + Number(n), 0);
+  const m = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/);
+  if (m && (m[1] || m[2] || m[3])) return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+  return null;
+}
+
+/** 83 → "1:23" */
+export function formatTime(sec) {
+  if (sec === null || sec === undefined || Number.isNaN(sec)) return '';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = String(sec % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
+
+/** Split a video link into its base link and start/end times (from t=, start=, end= or #t=). */
+export function splitVideo(url) {
+  if (!url) return { base: '', start: null, end: null };
+  try {
+    const u = new URL(url);
+    const start = parseTime(u.searchParams.get('t') ?? u.searchParams.get('start') ?? (u.hash.match(/t=([^&]+)/)?.[1]));
+    const end = parseTime(u.searchParams.get('end'));
+    ['t', 'start', 'end'].forEach((k) => u.searchParams.delete(k));
+    u.hash = '';
+    return { base: u.toString(), start, end };
+  } catch {
+    return { base: url, start: null, end: null };
+  }
+}
+
+/** Build a link to one part of a video: base link + start (and optional end) in seconds. */
+export function videoAt(base, start, end) {
+  if (!base) return '';
+  try {
+    const u = new URL(base);
+    ['t', 'start', 'end'].forEach((k) => u.searchParams.delete(k));
+    if (start) u.searchParams.set('t', String(start));
+    if (end) u.searchParams.set('end', String(end));
+    return u.toString();
+  } catch {
+    return base;
+  }
+}
+
+/** Turn a YouTube / Vimeo / .mp4 link into an embeddable URL that honours start/end times; null if not embeddable. */
 export function embedUrl(url) {
   if (!url) return null;
   try {
+    const { start, end } = splitVideo(url);
     const u = new URL(url);
     const host = u.hostname.replace(/^www\.|^m\./, '');
-    if (host === 'youtu.be') return `https://www.youtube.com/embed/${u.pathname.slice(1)}`;
+    const yt = (id) => {
+      const q = new URLSearchParams({ rel: '0', playsinline: '1' });
+      if (start) q.set('start', String(start));
+      if (end) q.set('end', String(end));
+      if (start || end) q.set('autoplay', '1');
+      return `https://www.youtube.com/embed/${id}?${q}`;
+    };
+    if (host === 'youtu.be') return yt(u.pathname.slice(1));
     if (host === 'youtube.com') {
-      if (u.searchParams.get('v')) return `https://www.youtube.com/embed/${u.searchParams.get('v')}`;
+      if (u.searchParams.get('v')) return yt(u.searchParams.get('v'));
       const m = u.pathname.match(/^\/(shorts|embed|live)\/([\w-]+)/);
-      if (m) return `https://www.youtube.com/embed/${m[2]}`;
+      if (m) return yt(m[2]);
     }
-    if (host === 'vimeo.com') {
-      const m = u.pathname.match(/^\/(\d+)/);
-      if (m) return `https://player.vimeo.com/video/${m[1]}`;
+    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+      const m = u.pathname.match(/(\d+)/);
+      if (m) return `https://player.vimeo.com/video/${m[1]}${start ? `#t=${start}s` : ''}`;
     }
-    if (/\.(mp4|webm|mov|m4v)$/i.test(u.pathname)) return url;
+    if (/\.(mp4|webm|mov|m4v)$/i.test(u.pathname)) {
+      const clean = new URL(url);
+      ['t', 'start', 'end'].forEach((k) => clean.searchParams.delete(k));
+      clean.hash = start || end ? `t=${start || 0}${end ? ',' + end : ''}` : '';
+      return clean.toString();
+    }
   } catch { /* not a URL */ }
   return null;
 }
 
-export const isDirectVideo = (url) => /\.(mp4|webm|mov|m4v)(\?|$)/i.test(url || '');
+export const isDirectVideo = (url) => /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url || '');

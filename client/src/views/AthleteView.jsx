@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { buildTree, skillLabel } from '../util.js';
+import { buildTree, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -88,6 +88,13 @@ export default function AthleteView({ athleteId }) {
           return (
             <Disclosure key={f.key} level={2} open={tree.isOpen(f.key)} onToggle={() => tree.toggle(f.key)} className={`fam-card cat-${f.category.toLowerCase()}`}
               header={<><div className="fam-title"><h3>{f.name}</h3><small>{f.category} › {f.sub}</small></div>
+                {(() => {
+                  const bases = [...new Set(f.skills.map((x) => splitVideo(x.video_url).base).filter(Boolean))];
+                  return bases.length === 1 && f.skills.filter((x) => x.video_url).length > 1 && (
+                    <button className="btn sm ghost" onClick={(e) => { e.stopPropagation(); setVideo({ url: bases[0], title: `${f.name} – whole video` }); }}>
+                      <Icon name="play" size={16} /> Whole video</button>
+                  );
+                })()}
                 <span className={`count ${d === allSkillsInFam.length ? 'done' : ''}`}>{d}/{allSkillsInFam.length}</span></>}>
               <ul className="check-list">
                 {f.skills.slice(0, n).map((s) => {
