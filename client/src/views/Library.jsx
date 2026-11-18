@@ -155,7 +155,8 @@ export function SkillEditor({ skill, onClose }) {
   // Steps already in the chosen family, so a new line can go in the right place.
   const famSteps = f.family.trim() ? familySkills(skills, f.family).filter((s) => s.id !== skill.id) : [];
   const [after, setAfter] = useState('end');
-  const linked = combos.filter((c) => c.checkpoints.includes(skill.id));
+  // Combos & routines this trick unlocks (stored on the combo as a readiness checkpoint).
+  const [comboIds, setComboIds] = useState(() => combos.filter((c) => skill.id && c.checkpoints.includes(skill.id)).map((c) => c.id));
 
   async function save() {
     const body = { ...f };
@@ -166,6 +167,15 @@ export function SkillEditor({ skill, onClose }) {
       const ids = famSteps.map((x) => x.id);
       ids.splice(after === 'start' ? 0 : ids.indexOf(after) + 1, 0, saved.id);
       await run(() => api.reorderSkills(ids));
+    }
+    // Sync combo checkpoints with the boxes ticked here.
+    const sid = isNew ? saved.id : skill.id;
+    for (const c of combos) {
+      const has = c.checkpoints.includes(sid);
+      const want = comboIds.includes(c.id);
+      if (has !== want) {
+        await run(() => api.updateCombo(c.id, { checkpoints: want ? [...c.checkpoints, sid] : c.checkpoints.filter((x) => x !== sid) }));
+      }
     }
     onClose();
   }
@@ -251,9 +261,22 @@ export function SkillEditor({ skill, onClose }) {
         <Field label="Common mistakes"><textarea rows={4} value={f.common_mistakes} onChange={set('common_mistakes')} /></Field>
       </div>
       <Field label="Review notes (coach only)"><input value={f.review_notes} onChange={set('review_notes')} /></Field>
-      {linked.length > 0 && (
-        <p className="muted"><Icon name="bolt" size={16} /> Readiness checkpoint for: {linked.map((c) => c.name).join(', ')}</p>
-      )}
+      <Field label="Leads to combos & routines" hint="When this trick is assigned, these are suggested: “Can you do this? Try this combo!” (Same as the readiness checkpoints in the Combo Library.)">
+        <div className="chips">
+          {comboIds.map((id) => {
+            const c = combos.find((x) => x.id === id);
+            return c && (
+              <span key={id} className="chip"><Icon name="bolt" size={14} /> {c.name} <small className="muted">({c.kind})</small>
+                <button type="button" aria-label={`Remove ${c.name}`} onClick={() => setComboIds((x) => x.filter((y) => y !== id))}><Icon name="x" size={16} /></button>
+              </span>
+            );
+          })}
+        </div>
+        <select className="select block" value="" onChange={(e) => e.target.value && setComboIds((x) => [...x, e.target.value])} aria-label="Add a combo or routine">
+          <option value="">+ Link a combo or routine…</option>
+          {combos.filter((c) => !comboIds.includes(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
+        </select>
+      </Field>
     </Modal>
   );
 }
