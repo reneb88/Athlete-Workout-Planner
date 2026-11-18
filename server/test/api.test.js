@@ -209,3 +209,19 @@ test('combos and routines can be ready after other combos (chains)', async () =>
   b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
   assert.deepEqual(b.getCombo(finale.id).after_combos, [routine.id]);
 });
+
+test('filming punch list fields on skills and combos', async () => {
+  const s = await fresh();
+  s.updateSkill('S110', { film_status: 'Filmed', film_assignee: 'Coach Sam', film_note: 'side view' });
+  s.updateSkill('S111', { film_status: 'skip' });
+  s.updateCombo('C001', { film_status: 'filmed', film_assignee: 'Jo' });
+  assert.equal(s.getSkill('S110').film_status, 'filmed');
+  assert.equal(s.getSkill('S111').film_status, 'skip');
+  assert.equal(s.getCombo('C001').film_assignee, 'Jo');
+  s.saveWorkout('A01', { skill_ids: ['S110'] });
+  assert.equal(s.snapshot().skillUse.S110, 1);
+  const b = openDb(':memory:');
+  b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
+  assert.equal(b.getSkill('S110').film_assignee, 'Coach Sam');
+  assert.equal(b.getCombo('C001').film_status, 'filmed');
+});

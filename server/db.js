@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS skills (
   review_notes TEXT NOT NULL DEFAULT '',
   leads_to TEXT NOT NULL DEFAULT '',
   required_elements TEXT NOT NULL DEFAULT '',
+  film_status TEXT NOT NULL DEFAULT '',
+  film_assignee TEXT NOT NULL DEFAULT '',
+  film_note TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -40,6 +43,9 @@ CREATE TABLE IF NOT EXISTS combos (
   kind TEXT NOT NULL DEFAULT 'combo',
   video_url TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
+  film_status TEXT NOT NULL DEFAULT '',
+  film_assignee TEXT NOT NULL DEFAULT '',
+  film_note TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS combo_after (
@@ -90,13 +96,20 @@ CREATE TABLE IF NOT EXISTS templates (
 
 const SKILL_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'sequence', 'target',
   'prerequisites', 'related', 'video_url', 'teaching_notes', 'common_mistakes', 'source_page',
-  'review_notes', 'leads_to', 'required_elements', 'sort_order'];
+  'review_notes', 'leads_to', 'required_elements', 'film_status', 'film_assignee', 'film_note', 'sort_order'];
 
 const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 
 /** Official required-element categories (competition rules), separate from the teaching categories. */
 export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
 /** Accepts an array or text like "multiples, power" and returns e.g. "Multiples, Power & Gymnastics". */
+/** Filming punch list: '' (to film) | 'filmed' (needs link) | 'skip' (no video needed). Having a video = done. */
+export function normalizeFilm(v) {
+  const t = String(v ?? '').toLowerCase();
+  if (/skip|no video|not needed/.test(t)) return 'skip';
+  if (/filmed|uploaded|needs link|edit/.test(t)) return 'filmed';
+  return '';
+}
 export function normalizeRequired(v) {
   const tokens = Array.isArray(v) ? v : String(v ?? '').split(/[,;\n]+/);
   const out = new Set();
@@ -117,8 +130,12 @@ export function openDb(file) {
   if (!db.prepare('PRAGMA table_info(skills)').all().some((c) => c.name === 'leads_to')) {
     db.exec("ALTER TABLE skills ADD COLUMN leads_to TEXT NOT NULL DEFAULT ''");
   }
-  if (!db.prepare('PRAGMA table_info(skills)').all().some((c) => c.name === 'required_elements')) {
-    db.exec("ALTER TABLE skills ADD COLUMN required_elements TEXT NOT NULL DEFAULT ''");
+  // Migrations: add columns that newer versions use.
+  for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note']]) {
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+    }
   }
   const store = new Store(db);
   // One time: link existing "Try …" steps to the family they lead to.
@@ -174,6 +191,7 @@ export function normalizeSkill(input) {
   if ('sequence' in s) s.sequence = Number(s.sequence) || 0;
   if ('sort_order' in s) s.sort_order = Number(s.sort_order) || 0;
   if ('required_elements' in s) s.required_elements = normalizeRequired(s.required_elements);
+  if ('film_status' in s) s.film_status = normalizeFilm(s.film_status);
   if ('prerequisites' in s) {
     let p = s.prerequisites;
     if (typeof p === 'string') p = p.split(/[,;\s]+/);
@@ -204,6 +222,9 @@ class Store {
         combo_ids: JSON.parse(t.combo_ids),
         dismissed_ids: JSON.parse(t.dismissed_ids),
       })),
+      // how many athletes have each skill — used to prioritise filming
+      skillUse: Object.fromEntries(d.prepare('SELECT skill_id, COUNT(*) AS n FROM skill_assignments GROUP BY skill_id').all()
+        .map((r) => [r.skill_id, r.n])),
       assignmentCounts: Object.fromEntries(d.prepare(
         'SELECT athlete_id, COUNT(*) AS n FROM skill_assignments GROUP BY athlete_id').all()
         .map((r) => [r.athlete_id, r.n])),
@@ -379,8 +400,9 @@ class Store {
     if (this.getCombo(id)) throw httpError(409, `Combo ${id} already exists`);
     const order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM combos').get().m ?? 0) + 1;
     tx(this.db, () => {
-      this.db.prepare('INSERT INTO combos (id, name, kind, video_url, notes, sort_order) VALUES (?,?,?,?,?,?)')
-        .run(id, name, input.kind === 'routine' ? 'routine' : 'combo', str(input.video_url), str(input.notes), order);
+      this.db.prepare('INSERT INTO combos (id, name, kind, video_url, notes, film_status, film_assignee, film_note, sort_order) VALUES (?,?,?,?,?,?,?,?,?)')
+        .run(id, name, input.kind === 'routine' ? 'routine' : 'combo', str(input.video_url), str(input.notes),
+          normalizeFilm(input.film_status), str(input.film_assignee), str(input.film_note), order);
       this.setCheckpoints(id, input.checkpoints);
       this.setAfterCombos(id, input.after_combos);
     });
@@ -393,8 +415,9 @@ class Store {
     const next = { ...c, ...input };
     if (!str(next.name)) throw httpError(400, 'Combo name is required');
     tx(this.db, () => {
-      this.db.prepare('UPDATE combos SET name = ?, kind = ?, video_url = ?, notes = ? WHERE id = ?')
-        .run(str(next.name), next.kind === 'routine' ? 'routine' : 'combo', str(next.video_url), str(next.notes), id);
+      this.db.prepare('UPDATE combos SET name = ?, kind = ?, video_url = ?, notes = ?, film_status = ?, film_assignee = ?, film_note = ? WHERE id = ?')
+        .run(str(next.name), next.kind === 'routine' ? 'routine' : 'combo', str(next.video_url), str(next.notes),
+          normalizeFilm(next.film_status), str(next.film_assignee), str(next.film_note), id);
       if ('checkpoints' in input) this.setCheckpoints(id, input.checkpoints);
       if ('after_combos' in input) this.setAfterCombos(id, input.after_combos);
     });
@@ -572,11 +595,13 @@ class Store {
         upAth.run(str(a.id), str(a.name), str(a.group_notes), str(a.age), i + 1);
         counts.athletes++;
       });
-      const upCombo = d.prepare(`INSERT INTO combos (id, name, kind, video_url, notes, sort_order) VALUES (?,?,?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, video_url=excluded.video_url, notes=excluded.notes, sort_order=excluded.sort_order`);
       (data.combos || []).forEach((c, i) => {
         if (!str(c.id) || !str(c.name)) return;
-        upCombo.run(str(c.id), str(c.name), c.kind === 'routine' ? 'routine' : 'combo', str(c.video_url), str(c.notes), i + 1);
+        const extra = ['film_status', 'film_assignee', 'film_note'].filter((f) => f in c);
+        d.prepare(`INSERT INTO combos (id, name, kind, video_url, notes, sort_order${extra.map((f) => ', ' + f).join('')}) VALUES (?,?,?,?,?,?${extra.map(() => ',?').join('')})
+          ON CONFLICT(id) DO UPDATE SET name=excluded.name, kind=excluded.kind, video_url=excluded.video_url, notes=excluded.notes, sort_order=excluded.sort_order${extra.map((f) => `, ${f}=excluded.${f}`).join('')}`)
+          .run(str(c.id), str(c.name), c.kind === 'routine' ? 'routine' : 'combo', str(c.video_url), str(c.notes), i + 1,
+            ...extra.map((f) => (f === 'film_status' ? normalizeFilm(c[f]) : str(c[f]))));
         this.setCheckpoints(str(c.id), (c.checkpoints || []).filter((t) => !/^C\d+$/i.test(t)));
         counts.combos++;
       });

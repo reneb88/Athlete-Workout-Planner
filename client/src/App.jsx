@@ -10,6 +10,7 @@ import DataPage from './views/DataPage.jsx';
 import PrintCenter from './views/PrintCenter.jsx';
 import Spreadsheet from './views/Spreadsheet.jsx';
 import Login from './views/Login.jsx';
+import Filming from './views/Filming.jsx';
 
 const NAV = [
   { id: 'designer', label: 'Workout Designer', short: 'Designer' },
@@ -17,6 +18,7 @@ const NAV = [
   { id: 'library', label: 'Master Library', short: 'Library' },
   { id: 'combos', label: 'Combo Library', short: 'Combos' },
   { id: 'sheet', label: 'Spreadsheet', short: 'Sheet' },
+  { id: 'film', label: 'Film list', short: 'Film' },
   { id: 'athletes', label: 'Athletes', short: 'Athletes' },
   { id: 'data', label: 'Import/Export', short: 'Data' },
 ];
@@ -130,7 +132,8 @@ export default function App() {
             {route.page === 'data' && <DataPage />}
             {route.page === 'print' && <PrintCenter initial={route.arg} key={route.arg || 'print'} />}
             {route.page === 'sheet' && <Spreadsheet />}
-            {!['designer', 'library', 'combos', 'athletes', 'athlete', 'data', 'print', 'sheet'].includes(route.page) && <Designer />}
+            {route.page === 'film' && <Filming />}
+            {!['designer', 'library', 'combos', 'athletes', 'athlete', 'data', 'print', 'sheet', 'film'].includes(route.page) && <Designer />}
           </AppCtx.Provider>
         )}
       </main>

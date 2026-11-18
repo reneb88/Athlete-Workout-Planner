@@ -55,6 +55,9 @@ const SKILL_ALIASES = {
   review_notes: ['Review notes'],
   leads_to: ['Leads to', 'Leads to (next skill family)', 'Next skill'],
   required_elements: ['Required element', 'Required elements', 'Official required element'],
+  film_status: ['Film status'],
+  film_assignee: ['Film assigned to', 'Filmed by'],
+  film_note: ['Film note', 'Filming note'],
 };
 
 export async function parseWorkbook(buffer) {
@@ -88,6 +91,9 @@ export async function parseWorkbook(buffer) {
     kind: ['Type', 'Kind'],
     checkpoints: ['Checkpoint skill ID', 'Checkpoint skill IDs', 'Checkpoints'],
     after_combos: ['Ready after combo IDs', 'Ready after combos'],
+    film_status: ['Film status'],
+    film_assignee: ['Film assigned to', 'Filmed by'],
+    film_note: ['Film note', 'Filming note'],
     video_url: ['Video URL', 'Video'],
     notes: ['Notes / choreography', 'Notes'],
   }).filter((c) => c.id && c.name).map((c) => ({
@@ -164,6 +170,9 @@ export async function buildWorkbook(store) {
     { header: 'Review notes', key: 'review_notes', width: 30 },
     { header: 'Leads to', key: 'leads_to', width: 40 },
     { header: 'Required element', key: 'required_elements', width: 30 },
+    { header: 'Film status', key: 'film_status', width: 14 },
+    { header: 'Film assigned to', key: 'film_assignee', width: 18 },
+    { header: 'Film note', key: 'film_note', width: 30 },
   ];
   for (const s of snap.skills) lib.addRow({ ...s, prerequisites: s.prerequisites.join(', '), leads_to: s.leads_to ? s.leads_to.split('|').join(' › ') : '' });
   styleHeader(lib);
@@ -187,6 +196,9 @@ export async function buildWorkbook(store) {
     { header: 'Checkpoint skill ID', key: 'checkpoints', width: 20 },
     { header: 'Ready after (linked skill)', key: 'ready', width: 40 },
     { header: 'Ready after combo IDs', key: 'after_combos', width: 20 },
+    { header: 'Film status', key: 'film_status', width: 14 },
+    { header: 'Film assigned to', key: 'film_assignee', width: 18 },
+    { header: 'Film note', key: 'film_note', width: 30 },
     { header: 'Video URL', key: 'video_url', width: 30 },
     { header: 'Notes / choreography', key: 'notes', width: 40 },
   ];
