@@ -11,7 +11,7 @@ services:
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: "22.22.0"
+        value: "22"
       - key: DB_FILE
         value: /var/data/ropeworks.db
     disk:
