@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Disclosure, Empty, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import { buildTree, buildsOnMap, famId, familyKey, familyName, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
@@ -109,6 +109,7 @@ export default function AthleteView({ athleteId }) {
                           <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</div>
                           {s.teaching_notes && <div className="ci-notes">{s.teaching_notes}</div>}
                           {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
+                          {s.required_elements && <div className="skill-meta"><ReTags skill={s} /></div>}
                         </div>
                         {s.video_url && <button className="icon-btn accent lg" aria-label="Watch demo" onClick={(e) => { e.stopPropagation(); setVideo({ url: s.video_url, title: skillLabel(s) }); }}><Icon name="play" /></button>}
                       </div>

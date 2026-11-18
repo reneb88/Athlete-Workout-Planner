@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, ReTags, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
 import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { SkillEditor } from './Library.jsx';
@@ -291,7 +291,8 @@ export default function Designer({ initialAthlete }) {
                                     <span className="seq">{i + 1}</span>
                                     <div className="skill-main">
                                       <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
-                                      {sk.leads_to && <div className="skill-meta"><span className="tag next">→ Leads to {familyName(sk.leads_to)}</span></div>}
+                                      {(sk.leads_to || sk.required_elements) && <div className="skill-meta">
+                                        {sk.leads_to && <span className="tag next">→ Leads to {familyName(sk.leads_to)}</span>}<ReTags skill={sk} /></div>}
                                       {checkpointMap[sk.id] && (
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
                                       )}

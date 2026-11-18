@@ -181,3 +181,14 @@ test('new or renamed "Try …" steps link themselves', async () => {
   s.updateSkill('S001', { name: 'Try toad' });
   assert.equal(s.getSkill('S001').leads_to, 'Toad');
 });
+
+test('official required elements are stored, normalised and round-trip', async () => {
+  const s = await fresh();
+  s.updateSkill('S010', { required_elements: ['manipulation'] });
+  s.updateSkill('S019', { required_elements: 'multiples; power' });
+  assert.equal(s.getSkill('S010').required_elements, 'Manipulation');
+  assert.equal(s.getSkill('S019').required_elements, 'Multiples, Power & Gymnastics');
+  const b = openDb(':memory:');
+  b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
+  assert.equal(b.getSkill('S019').required_elements, 'Multiples, Power & Gymnastics');
+});

@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS skills (
   source_page TEXT NOT NULL DEFAULT '',
   review_notes TEXT NOT NULL DEFAULT '',
   leads_to TEXT NOT NULL DEFAULT '',
+  required_elements TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -84,9 +85,23 @@ CREATE TABLE IF NOT EXISTS templates (
 
 const SKILL_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'sequence', 'target',
   'prerequisites', 'related', 'video_url', 'teaching_notes', 'common_mistakes', 'source_page',
-  'review_notes', 'leads_to', 'sort_order'];
+  'review_notes', 'leads_to', 'required_elements', 'sort_order'];
 
 const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
+
+/** Official required-element categories (competition rules), separate from the teaching categories. */
+export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
+/** Accepts an array or text like "multiples, power" and returns e.g. "Multiples, Power & Gymnastics". */
+export function normalizeRequired(v) {
+  const tokens = Array.isArray(v) ? v : String(v ?? '').split(/[,;\n]+/);
+  const out = new Set();
+  for (const t of tokens.map((x) => String(x).toLowerCase())) {
+    if (/multi/.test(t)) out.add('Multiples');
+    if (/power|gym/.test(t)) out.add('Power & Gymnastics');
+    if (/manip|wrap|release/.test(t)) out.add('Manipulation');
+  }
+  return REQUIRED_ELEMENTS.filter((r) => out.has(r)).join(', ');
+}
 
 export function openDb(file) {
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -96,6 +111,9 @@ export function openDb(file) {
   // Migration: databases created before "Leads to" existed get the new column.
   if (!db.prepare('PRAGMA table_info(skills)').all().some((c) => c.name === 'leads_to')) {
     db.exec("ALTER TABLE skills ADD COLUMN leads_to TEXT NOT NULL DEFAULT ''");
+  }
+  if (!db.prepare('PRAGMA table_info(skills)').all().some((c) => c.name === 'required_elements')) {
+    db.exec("ALTER TABLE skills ADD COLUMN required_elements TEXT NOT NULL DEFAULT ''");
   }
   const store = new Store(db);
   // One time: link existing "Try …" steps to the family they lead to.
@@ -150,6 +168,7 @@ export function normalizeSkill(input) {
     'teaching_notes', 'common_mistakes', 'source_page', 'review_notes', 'leads_to']) if (f in s) s[f] = str(s[f]);
   if ('sequence' in s) s.sequence = Number(s.sequence) || 0;
   if ('sort_order' in s) s.sort_order = Number(s.sort_order) || 0;
+  if ('required_elements' in s) s.required_elements = normalizeRequired(s.required_elements);
   if ('prerequisites' in s) {
     let p = s.prerequisites;
     if (typeof p === 'string') p = p.split(/[,;\s]+/);

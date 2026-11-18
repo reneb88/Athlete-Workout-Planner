@@ -25,6 +25,7 @@ const SKILL_COLS = [
   { key: 'common_mistakes', label: 'Common mistakes', w: 200, hide: true },
   { key: 'review_notes', label: 'Review notes', w: 200, hide: true },
   { key: 'leads_to', label: 'Leads to (next family)', w: 220, family: true, hide: true },
+  { key: 'required_elements', label: 'Required element (rules)', w: 200, hide: true },
 ];
 const ATHLETE_COLS = [
   { key: 'id', label: 'ID', w: 70, readOnly: true },

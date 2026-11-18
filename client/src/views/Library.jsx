@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, ReTags, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
-import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, REQUIRED_ELEMENTS, reList, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
   const { skills, combos, run } = useApp();
@@ -27,7 +27,7 @@ export default function Library() {
   const filtered = useMemo(() => skills.filter((s) =>
     (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q) &&
     (flag === 'all' || (flag === 'review' && s.review_notes) || (flag === 'video' && s.video_url) ||
-      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]))), [skills, homes, cat, q, flag, comboBySkill]);
+      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]) || (flag === 're-any' && reList(s).length) || (flag.startsWith('re:') && reList(s).includes(flag.slice(3))))), [skills, homes, cat, q, flag, comboBySkill]);
   const nodes = useMemo(() => buildTree(filtered, skills).filter((c) => c.subs.length), [filtered, skills]);
   const searching = q.trim() || flag !== 'all';
   const isOpen = (k) => searching || tree.isOpen(k);
@@ -61,6 +61,10 @@ export default function Library() {
           <option value="video">Has video</option>
           <option value="novideo">Missing video</option>
           <option value="combo">Combo checkpoints</option>
+          <optgroup label="Official required elements">
+            <option value="re-any">Any required element</option>
+            {REQUIRED_ELEMENTS.map((r) => <option key={r} value={`re:${r}`}>Required: {r}</option>)}
+          </optgroup>
         </select>
         {!searching && (
           <div className="btn-group">
@@ -98,6 +102,7 @@ export default function Library() {
                             {sk.prerequisites.length > 0 && <span className="tag">Prereq: {sk.prerequisites.join(', ')}</span>}
                             {sk.teaching_notes && <span className="tag">Notes</span>}
                             {sk.review_notes && <span className="tag warn">Review</span>}
+                            <ReTags skill={sk} />
                             {sk.leads_to && <span className="tag next">→ Leads to {familyName(sk.leads_to)}</span>}
                             {comboBySkill[sk.id]?.map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}
                           </div>
@@ -137,7 +142,7 @@ export function SkillEditor({ skill, onClose }) {
   const isNew = !skill.id;
   const [f, setF] = useState({
     category: 'Manipulation', subcategory: '', family: '', name: '', target: '', level: '', sequence: '',
-    prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', ...skill,
+    prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', required_elements: '', ...skill,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   const subs = [...new Set(skills.filter((s) => s.category === f.category).sort((a, b) => a.sort_order - b.sort_order).map((s) => s.subcategory).filter(Boolean))];
@@ -219,6 +224,21 @@ export function SkillEditor({ skill, onClose }) {
       </div>
       <Field label="Prerequisites">
         <SkillPicker value={f.prerequisites} onChange={set('prerequisites')} exclude={skill.id} placeholder="Search for a prerequisite skill…" />
+      </Field>
+      <Field label="Official required element (rules)" hint="For competition routines — separate from the teaching category above. Pick any that apply.">
+        <div className="re-pick">
+          {REQUIRED_ELEMENTS.map((r) => {
+            const on = reList(f).includes(r);
+            return (
+              <label key={r} className="opt">
+                <Check checked={on} label={r} onChange={() => setF((x) => {
+                  const cur = reList(x);
+                  return { ...x, required_elements: (on ? cur.filter((y) => y !== r) : [...cur, r]).join(', ') };
+                })} /> {r}
+              </label>
+            );
+          })}
+        </div>
       </Field>
       <Field label="Leads to (next skill family)" hint="For “Try …” steps: when this step is assigned, the coach is offered this family’s whole progression.">
         <FamilySelect value={f.leads_to} onChange={set('leads_to')} skills={skills} exclude={f.family} />

@@ -54,6 +54,7 @@ const SKILL_ALIASES = {
   source_page: ['Source page'],
   review_notes: ['Review notes'],
   leads_to: ['Leads to', 'Leads to (next skill family)', 'Next skill'],
+  required_elements: ['Required element', 'Required elements', 'Official required element'],
 };
 
 export async function parseWorkbook(buffer) {
@@ -160,6 +161,7 @@ export async function buildWorkbook(store) {
     { header: 'Source page', key: 'source_page', width: 11 },
     { header: 'Review notes', key: 'review_notes', width: 30 },
     { header: 'Leads to', key: 'leads_to', width: 40 },
+    { header: 'Required element', key: 'required_elements', width: 30 },
   ];
   for (const s of snap.skills) lib.addRow({ ...s, prerequisites: s.prerequisites.join(', '), leads_to: s.leads_to ? s.leads_to.split('|').join(' › ') : '' });
   styleHeader(lib);

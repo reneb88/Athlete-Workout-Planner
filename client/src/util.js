@@ -212,3 +212,7 @@ export function buildsOnMap(skills) {
   }
   return m;
 }
+
+/** Official required-element categories (competition rules) — separate from the teaching categories. */
+export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
+export const reList = (s) => String(s?.required_elements || '').split(',').map((x) => x.trim()).filter(Boolean);

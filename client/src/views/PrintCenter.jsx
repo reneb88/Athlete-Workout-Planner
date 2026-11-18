@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { Check, Empty, Icon, SearchBox, Seg, useApp } from '../components.jsx';
 import { PrintSheet, applyOptions, sheetData } from '../printing.jsx';
 import { exportPdfMany } from '../pdf.js';
+import { REQUIRED_ELEMENTS, reList } from '../util.js';
 
 const PREF_KEY = 'ropeworks.printPrefs';
 const loadPrefs = () => { try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch { return {}; } };
@@ -37,6 +38,9 @@ export default function PrintCenter({ initial }) {
   const [posterSel, setPosterSel] = useState([]);
   const posterSources = useMemo(() => [
     ...app.templates.map((t) => ({ id: `t:${t.id}`, name: t.name, sub: t.description, skill_ids: t.skill_ids, combo_ids: t.combo_ids })),
+    // Official required elements: one poster per category so athletes can pick their 6.
+    ...REQUIRED_ELEMENTS.map((r) => ({ id: `re:${r}`, name: `Required elements · ${r}`, sub: 'Pick 6',
+      skill_ids: app.skills.filter((x) => reList(x).includes(r)).map((x) => x.id), combo_ids: [] })).filter((p) => p.skill_ids.length),
     { id: 'all', name: 'Whole skill library', sub: 'Every challenge', skill_ids: app.skills.map((x) => x.id), combo_ids: app.combos.map((c) => c.id) },
   ], [app.templates, app.skills, app.combos]);
   const posterSheets = useMemo(() => posterSel.map((id) => posterSources.find((p) => p.id === id)).filter(Boolean).map((p) =>
@@ -128,7 +132,7 @@ export default function PrintCenter({ initial }) {
       </div>
 
       <div className="print-preview">
-        {sheets.map((d) => <PrintSheet key={d.athlete.id} data={d} skillById={app.skillById} showNotes={prefs.showNotes} poster={mode === 'posters'} />)}
+        {sheets.map((d) => <PrintSheet key={d.athlete.id} data={d} skillById={app.skillById} showNotes={prefs.showNotes} poster={mode === 'posters'} hideCategories={String(d.athlete.id).startsWith('re:')} />)}
       </div>
     </div>
   );

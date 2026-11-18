@@ -23,7 +23,7 @@ export function applyOptions(d, { hideDone = false } = {}) {
 }
 
 /** Branded checklist sheet. Hidden on screen unless inside .print-preview; always shown when printing. */
-export function PrintSheet({ data, skillById, showNotes = false, poster = false }) {
+export function PrintSheet({ data, skillById, showNotes = false, poster = false, hideCategories = false }) {
   const { athlete, skills, combos, done, comboByCheckpoint } = data;
   const buildsOn = buildsOnMap(Object.values(skillById));
   const nodes = buildTree(skills, Object.values(skillById)).filter((c) => c.subs.length);
@@ -36,7 +36,7 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false 
       {nodes.length === 0 && combos.length === 0 && <p className="ps-empty">Nothing to practice on this list.</p>}
       {nodes.map((c) => (
         <section key={c.key} className={`ps-cat cat-${c.name.toLowerCase()}`}>
-          <h2>{c.name}</h2>
+          {!hideCategories && <h2>{c.name}</h2>}
           {c.subs.flatMap((s) => s.families.map((f) => (
             <div key={f.key} className="ps-fam">
               <h3>{f.name} <small>{s.name}</small>

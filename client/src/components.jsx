@@ -188,3 +188,10 @@ export function FamilySelect({ value, onChange, skills, exclude, className = 'se
     </select>
   );
 }
+
+/** Small, low-key "RE" tags for official required elements. */
+export function ReTags({ skill }) {
+  const list = String(skill?.required_elements || '').split(',').map((x) => x.trim()).filter(Boolean);
+  if (!list.length) return null;
+  return list.map((r) => <span key={r} className="tag re" title={`Official required element: ${r}`}>RE · {r}</span>);
+}
