@@ -187,6 +187,15 @@ export function SkillEditor({ skill, onClose }) {
             }} />
         </Field>
         <Field label="Challenge / progression step"><input value={f.name} onChange={set('name')} autoFocus={isNew && !!skill.family} placeholder="e.g. Toad double" /></Field>
+        {(() => {
+          const same = famSteps.find((x) => x.name.trim().toLowerCase() === f.name.trim().toLowerCase()
+            && (x.target || '').trim().toLowerCase() === (f.target || '').trim().toLowerCase());
+          return f.name.trim() && same ? (
+            <p className="banner warn" style={{ gridColumn: '1 / -1' }}>
+              {f.family} already has a step called “{skillLabel(same)}” (step {famSteps.indexOf(same) + 1}). Is this a duplicate?
+            </p>
+          ) : null;
+        })()}
         {isNew && famSteps.length > 0 && (
           <Field label="Where in the progression?">
             <select className="select block" value={after} onChange={(e) => setAfter(e.target.value)}>

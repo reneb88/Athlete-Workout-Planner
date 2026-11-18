@@ -203,6 +203,7 @@ class Store {
     const cols = ['id', ...Object.keys(s)];
     this.db.prepare(`INSERT INTO skills (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`)
       .run(id, ...Object.values(s));
+    if (!s.leads_to) this.autoLinkTry(id);
     return this.getSkill(id);
   }
 
@@ -218,6 +219,8 @@ class Store {
       this.db.prepare(`UPDATE skills SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
         .run(...Object.values(s), id);
     }
+    // Renamed to "Try …" (and not linked by hand): link it to that family.
+    if ('name' in s && !('leads_to' in s)) this.autoLinkTry(id);
     return this.getSkill(id);
   }
 
@@ -278,8 +281,9 @@ class Store {
   }
 
   /** Fill in "Leads to" for "Try X" steps whose X matches an existing skill family (only where it's empty). */
-  autoLinkTry() {
-    const rows = this.db.prepare("SELECT * FROM skills WHERE leads_to = '' AND lower(name) LIKE '%try %'").all();
+  autoLinkTry(onlyId) {
+    const rows = this.db.prepare("SELECT * FROM skills WHERE leads_to = '' AND lower(name) LIKE '%try %'").all()
+      .filter((r) => !onlyId || r.id === onlyId);
     let n = 0;
     for (const r of rows) {
       const m = r.name.match(/try\s+(.+)$/i);

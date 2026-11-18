@@ -173,3 +173,11 @@ test('a family is one progression across categories', async () => {
   // new steps go to the end of the family, whatever their category
   assert.equal(s.createSkill({ category: 'Multiples', subcategory: 'Doubles', family: '360 turn', name: '360 double cross' }).sequence, 6);
 });
+
+test('new or renamed "Try …" steps link themselves', async () => {
+  const s = await fresh();
+  const n = s.createSkill({ category: 'Manipulation', subcategory: 'Starters', family: 'Basic bounce', name: 'Try Double Under' });
+  assert.equal(n.leads_to, 'Double under');
+  s.updateSkill('S001', { name: 'Try toad' });
+  assert.equal(s.getSkill('S001').leads_to, 'Toad');
+});
