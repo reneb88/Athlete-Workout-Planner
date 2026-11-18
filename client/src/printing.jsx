@@ -1,4 +1,4 @@
-import { buildTree, buildsOnMap, familyKey, familyName, isVariant, skillLabel } from './util.js';
+import { buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, ctx) {
@@ -40,12 +40,14 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
           {c.subs.flatMap((s) => s.families.map((f) => (
             <div key={f.key} className="ps-fam">
               <h3>{f.name} <small>{s.name}</small>
-                {buildsOn[familyKey(f.skills[0])] && <small className="ps-builds"> · builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</small>}</h3>
+                {buildsOn[familyKey(f.skills[0])] && <small className="ps-builds"> · builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</small>}
+                {(() => { const u = familyVideoUrl(familySkills(Object.values(skillById), f.name)); return u && <a className="ps-link" href={u} target="_blank" rel="noreferrer">▶ whole family video</a>; })()}</h3>
               <ul>
                 {f.skills.map((sk) => (
                   <li key={sk.id}>
                     <span className={`ps-box ${done.has(`skill:${sk.id}`) ? 'on' : ''}`} />
                     <span>{skillLabel(sk)}{isVariant(sk, f) && <small className="ps-variant"> ({sk.subcategory || sk.category})</small>}</span>
+                    {sk.video_url && <a className="ps-link" href={shareUrl(sk.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
                     {showNotes && sk.teaching_notes && <em className="ps-note">{sk.teaching_notes}</em>}
                     {sk.leads_to && <em className="ps-note">→ Next skill: {familyName(sk.leads_to)}</em>}
                     {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this combo: {cb.name}</em>)}

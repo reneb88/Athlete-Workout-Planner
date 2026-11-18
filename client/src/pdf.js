@@ -1,4 +1,4 @@
-import { buildTree, isVariant, skillLabel } from './util.js';
+import { buildTree, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 const NAVY = [11, 30, 58];
 const ORANGE = [255, 90, 31];
@@ -39,33 +39,46 @@ export async function exportPdfMany(sheets, { showNotes = true, filename } = {})
     athlete = sheet.athlete;
     if (idx > 0) doc.addPage();
     const body = [];
+    const LINK = [29, 78, 216];
+    const watch = (url) => (url ? { content: 'Watch', url: shareUrl(url), styles: { textColor: LINK, fontStyle: 'bold', halign: 'center' } } : '');
     for (const c of buildTree(skills, all).filter((x) => x.subs.length)) {
-      body.push([{ content: c.name.toUpperCase(), colSpan: 3, styles: { fillColor: CAT_COLORS[c.name] || NAVY, textColor: 255, fontStyle: 'bold', fontSize: 11 } }]);
+      body.push([{ content: c.name.toUpperCase(), colSpan: 4, styles: { fillColor: CAT_COLORS[c.name] || NAVY, textColor: 255, fontStyle: 'bold', fontSize: 11 } }]);
       for (const s of c.subs) for (const f of s.families) {
-        body.push([{ content: `${f.name}   ·   ${s.name}`, colSpan: 3, styles: { fillColor: [236, 240, 247], textColor: NAVY, fontStyle: 'bold' } }]);
+        const famUrl = familyVideoUrl(familySkills(all, f.name));
+        body.push([{
+          content: `${f.name}   ·   ${s.name}${famUrl ? '        Watch the whole family video' : ''}`,
+          colSpan: 4, url: famUrl || undefined,
+          styles: { fillColor: [236, 240, 247], textColor: NAVY, fontStyle: 'bold' },
+        }]);
         for (const sk of f.skills) {
-          body.push([done.has(`skill:${sk.id}`) ? 'X' : '', skillLabel(sk) + (isVariant(sk, f) ? `  (${sk.subcategory || sk.category})` : ''), showNotes ? sk.teaching_notes || '' : '']);
+          body.push([done.has(`skill:${sk.id}`) ? 'X' : '', skillLabel(sk) + (isVariant(sk, f) ? `  (${sk.subcategory || sk.category})` : ''),
+            watch(sk.video_url), showNotes ? sk.teaching_notes || '' : '']);
           for (const cb of comboByCheckpoint[sk.id] || []) {
-            body.push([done.has(`combo:${cb.id}`) ? 'X' : '', { content: `Can you do this? Try this combo!  ${cb.name}`, styles: { textColor: ORANGE, fontStyle: 'bolditalic' } }, cb.notes || '']);
+            body.push([done.has(`combo:${cb.id}`) ? 'X' : '', { content: `Can you do this? Try this combo!  ${cb.name}`, styles: { textColor: ORANGE, fontStyle: 'bolditalic' } }, watch(cb.video_url), cb.notes || '']);
           }
         }
       }
     }
     if (combos.length) {
-      body.push([{ content: 'COMBOS & ROUTINES', colSpan: 3, styles: { fillColor: ORANGE, textColor: 255, fontStyle: 'bold', fontSize: 11 } }]);
-      for (const c of combos) body.push([done.has(`combo:${c.id}`) ? 'X' : '', `${c.name} (${c.kind})`, c.notes || '']);
+      body.push([{ content: 'COMBOS & ROUTINES', colSpan: 4, styles: { fillColor: ORANGE, textColor: 255, fontStyle: 'bold', fontSize: 11 } }]);
+      for (const c of combos) body.push([done.has(`combo:${c.id}`) ? 'X' : '', `${c.name} (${c.kind})`, watch(c.video_url), c.notes || '']);
     }
 
     autoTable(doc, {
       startY: 84,
       pageBreak: 'auto',
       margin: { top: 84, left: 36, right: 36, bottom: 40 },
-      head: [['Done', 'Challenge', 'Notes']],
+      head: [['Done', 'Challenge', 'Video', 'Notes']],
       body,
       theme: 'grid',
       styles: { font: 'helvetica', fontSize: 10, cellPadding: 6, lineColor: [210, 216, 226], valign: 'middle' },
       headStyles: { fillColor: NAVY, textColor: 255 },
-      columnStyles: { 0: { cellWidth: 40, halign: 'center', fontStyle: 'bold', textColor: ORANGE }, 1: { cellWidth: 260 } },
+      columnStyles: { 0: { cellWidth: 40, halign: 'center', fontStyle: 'bold', textColor: ORANGE }, 1: { cellWidth: 250 }, 2: { cellWidth: 56 } },
+      // Make video cells clickable in the PDF.
+      didDrawCell: (data) => {
+        const url = data.section === 'body' && data.cell.raw && typeof data.cell.raw === 'object' ? data.cell.raw.url : null;
+        if (url) doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url });
+      },
       didDrawPage: () => {
         header();
         doc.setFontSize(8);

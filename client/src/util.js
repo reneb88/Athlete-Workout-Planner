@@ -216,3 +216,35 @@ export function buildsOnMap(skills) {
 /** Official required-element categories (competition rules) — separate from the teaching categories. */
 export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
 export const reList = (s) => String(s?.required_elements || '').split(',').map((x) => x.trim()).filter(Boolean);
+
+/** YouTube video id from any YouTube link, or null. */
+function youtubeId(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\.|^m\./, '');
+    if (host === 'youtu.be') return u.pathname.slice(1) || null;
+    if (host === 'youtube.com') return u.searchParams.get('v') || u.pathname.match(/^\/(shorts|embed|live)\/([\w-]+)/)?.[2] || null;
+  } catch { /* not a URL */ }
+  return null;
+}
+
+/**
+ * A link to give athletes (PDFs, printouts): opens the video on its own site at the step's start time.
+ * Vimeo uses #t=…s, YouTube uses ?t=…; the "end" time can't be carried outside the app.
+ */
+export function shareUrl(url) {
+  if (!url) return '';
+  const { start } = splitVideo(url);
+  const v = vimeoInfo(url);
+  if (v) return `https://vimeo.com/${v.id}${v.hash ? '/' + v.hash : ''}${start ? `#t=${start}s` : ''}`;
+  const yt = youtubeId(url);
+  if (yt) return `https://youtu.be/${yt}${start ? `?t=${start}` : ''}`;
+  const { base } = splitVideo(url);
+  return start ? `${base}#t=${start}` : base;
+}
+
+/** The one video a whole family shares (if its steps all use the same video), as a share link from the start. */
+export function familyVideoUrl(familySteps) {
+  const bases = [...new Set(familySteps.map((s) => splitVideo(s.video_url).base).filter(Boolean))];
+  return bases.length === 1 && familySteps.filter((s) => s.video_url).length > 1 ? shareUrl(bases[0]) : '';
+}
