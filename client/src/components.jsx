@@ -64,10 +64,14 @@ export function Modal({ title, onClose, children, footer, wide }) {
 
 export function VideoModal({ url, title, onClose }) {
   const src = embedUrl(url);
-  const { start, end } = splitVideo(url);
+  const { start, end, chapter } = splitVideo(url);
   return (
     <Modal title={title} onClose={onClose} wide>
       {(start || end) && <p className="muted small">Plays {formatTime(start || 0)}{end ? `–${formatTime(end)}` : ' onwards'}</p>}
+      {chapter && !start && (
+        <p className="banner warn small">This is a Vimeo <b>chapter</b> link — the player inside the app can’t jump to chapters, so it starts at 0:00.
+          Use <b>Open video in new tab</b> to go to the chapter, or give this step a start time (Library → Family video).</p>
+      )}
       {src ? (
         isDirectVideo(src)
           ? <video className="video-frame" src={src} controls autoPlay playsInline />

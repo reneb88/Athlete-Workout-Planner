@@ -97,16 +97,18 @@ export function formatTime(sec) {
 
 /** Split a video link into its base link and start/end times (from t=, start=, end= or #t=). */
 export function splitVideo(url) {
-  if (!url) return { base: '', start: null, end: null };
+  if (!url) return { base: '', start: null, end: null, chapter: null };
   try {
     const u = new URL(url);
-    const start = parseTime(u.searchParams.get('t') ?? u.searchParams.get('start') ?? (u.hash.match(/t=([^&]+)/)?.[1]));
+    const start = parseTime(u.searchParams.get('t') ?? u.searchParams.get('start') ?? (u.hash.match(/(?:^#|&)t=([^&]+)/)?.[1]));
     const end = parseTime(u.searchParams.get('end'));
+    // Vimeo chapter links (#chapter=123): only vimeo.com understands these, not the embedded player.
+    const chapter = u.hash.match(/chapter=(\d+)/)?.[1] || null;
     ['t', 'start', 'end'].forEach((k) => u.searchParams.delete(k));
     u.hash = '';
-    return { base: u.toString(), start, end };
+    return { base: u.toString(), start, end, chapter };
   } catch {
-    return { base: url, start: null, end: null };
+    return { base: url, start: null, end: null, chapter: null };
   }
 }
 
@@ -234,9 +236,9 @@ function youtubeId(url) {
  */
 export function shareUrl(url) {
   if (!url) return '';
-  const { start } = splitVideo(url);
+  const { start, chapter } = splitVideo(url);
   const v = vimeoInfo(url);
-  if (v) return `https://vimeo.com/${v.id}${v.hash ? '/' + v.hash : ''}${start ? `#t=${start}s` : ''}`;
+  if (v) return `https://vimeo.com/${v.id}${v.hash ? '/' + v.hash : ''}${start ? `#t=${start}s` : chapter ? `#chapter=${chapter}` : ''}`;
   const yt = youtubeId(url);
   if (yt) return `https://youtu.be/${yt}${start ? `?t=${start}` : ''}`;
   const { base } = splitVideo(url);
