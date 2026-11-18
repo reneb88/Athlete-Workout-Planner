@@ -235,3 +235,17 @@ test('video board settings and per-athlete view style', async () => {
   s.updateAthlete('A01', { view_style: 'nonsense' });
   assert.equal(s.getAthlete('A01').view_style, '');
 });
+
+test('GIF links are stored and survive a videos-only import', async () => {
+  const s = await fresh();
+  s.updateSkill('S199', { gif_url: 'https://example.com/cross.gif' });
+  assert.equal(s.getSkill('S199').gif_url, 'https://example.com/cross.gif');
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Master Library');
+  ws.addRow(['ID', 'Video URL', 'GIF']);
+  ws.addRow(['S136', 'https://vimeo.com/166814730', 'https://example.com/jack.gif']);
+  s.importData(await parseWorkbook(Buffer.from(await wb.xlsx.writeBuffer())));
+  assert.equal(s.getSkill('S136').gif_url, 'https://example.com/jack.gif');
+  assert.equal(s.getSkill('S199').gif_url, 'https://example.com/cross.gif');
+});

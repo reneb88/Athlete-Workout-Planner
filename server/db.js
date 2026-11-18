@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS skills (
   film_status TEXT NOT NULL DEFAULT '',
   film_assignee TEXT NOT NULL DEFAULT '',
   film_note TEXT NOT NULL DEFAULT '',
+  gif_url TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -97,7 +98,7 @@ CREATE TABLE IF NOT EXISTS templates (
 
 const SKILL_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'sequence', 'target',
   'prerequisites', 'related', 'video_url', 'teaching_notes', 'common_mistakes', 'source_page',
-  'review_notes', 'leads_to', 'required_elements', 'film_status', 'film_assignee', 'film_note', 'sort_order'];
+  'review_notes', 'leads_to', 'required_elements', 'film_status', 'film_assignee', 'film_note', 'gif_url', 'sort_order'];
 
 const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 
@@ -136,7 +137,7 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
@@ -191,7 +192,7 @@ export function normalizeSkill(input) {
   const s = {};
   for (const f of SKILL_FIELDS) if (f in input) s[f] = input[f];
   for (const f of ['category', 'subcategory', 'family', 'name', 'level', 'target', 'related', 'video_url',
-    'teaching_notes', 'common_mistakes', 'source_page', 'review_notes', 'leads_to']) if (f in s) s[f] = str(s[f]);
+    'teaching_notes', 'common_mistakes', 'source_page', 'review_notes', 'leads_to', 'gif_url']) if (f in s) s[f] = str(s[f]);
   if ('sequence' in s) s.sequence = Number(s.sequence) || 0;
   if ('sort_order' in s) s.sort_order = Number(s.sort_order) || 0;
   if ('required_elements' in s) s.required_elements = normalizeRequired(s.required_elements);

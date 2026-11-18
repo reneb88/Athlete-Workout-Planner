@@ -258,6 +258,11 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--line-2); }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field-label { font-size: 14px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.gif-thumb { flex: none; padding: 0; border: 1.5px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; cursor: zoom-in; }
+.gif-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gif-big { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: 12px; }
+.gif-field { display: flex; gap: 8px; align-items: center; }
+.gif-field input { flex: 1; }
 .drag-grip { display: inline-flex; align-items: center; justify-content: center; width: 30px; min-height: 44px; flex: none; color: #9aa3b2;
   cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
 .drag-grip:hover { color: var(--ink); background: var(--line-2); }

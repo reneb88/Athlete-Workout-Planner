@@ -71,21 +71,24 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
 
   const LH = 10.5; // wrapped-line height
   /** Height a row will take (label may wrap). */
-  const rowLines = (label, hasLink, note) => {
+  const rowLines = (label, linkW, note) => {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(FS.item);
-    const n = doc.splitTextToSize(label, colW - 14 - (hasLink ? 30 : 0)).length;
+    const n = doc.splitTextToSize(label, colW - 14 - (linkW === true ? 30 : linkW || 0)).length;
     doc.setFontSize(FS.note);
     const m = note ? doc.splitTextToSize(note, colW - 14).length : 0;
     return { n, m, h: (n - 1) * LH + 14 + m * 9 };
   };
-  const item = (label, { done, url, note, color, style } = {}) => {
-    const { h } = rowLines(label, !!url, note);
+  const item = (label, { done, url, gif, note, color, style } = {}) => {
+    const links = (url ? 30 : 0) + (gif ? 22 : 0);
+    const { h } = rowLines(label, links, note);
     room(h);
     const x = x0();
     const base = y + 8;
     if (!noBox) box(x, base, done);
-    const n = text(label, noBox ? x : x + 13, base, { maxW: colW - 14 - (url ? 30 : 0), color, style });
-    if (url) link(noBox ? 'watch' : 'video', url, x + colW, base);
+    const n = text(label, noBox ? x : x + 13, base, { maxW: colW - 14 - links, color, style });
+    let right = x + colW;
+    if (url) right -= link(noBox ? 'watch' : 'video', url, right, base) + 6;
+    if (gif) link('gif', gif, right, base);
     let end = base + (n - 1) * LH;
     if (note) end += text(note, x + 13, end + 9, { size: FS.note, color: GREY, maxW: colW - 14 }) * 9;
     doc.setDrawColor(...LINE); doc.setLineWidth(0.4); doc.line(x, end + 3.5, x + colW, end + 3.5);
@@ -124,7 +127,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
         y += 14;
         for (const sk of f.skills) {
           item(skillLabel(sk) + (isVariant(sk, f) ? ` (${sk.subcategory || sk.category})` : ''), {
-            done: done.has(`skill:${sk.id}`), url: sk.video_url ? shareUrl(sk.video_url) : '', note: showNotes ? sk.teaching_notes : '',
+            done: done.has(`skill:${sk.id}`), url: sk.video_url ? shareUrl(sk.video_url) : '', gif: sk.gif_url || '', note: showNotes ? sk.teaching_notes : '',
           });
           for (const cb of comboByCheckpoint[sk.id] || []) {
             item(`Try this combo: ${cb.name}`, { done: done.has(`combo:${cb.id}`), url: cb.video_url ? shareUrl(cb.video_url) : '', color: ORANGE, style: 'bolditalic' });

@@ -278,3 +278,23 @@ export function SortableList({ items, getId = (x) => x.id, enabled = true, onReo
     </ol>
   );
 }
+
+/** Small animated GIF preview; tap to see it big. */
+export function GifThumb({ url, title = '', size = 48 }) {
+  const [open, setOpen] = useState(false);
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) return null;
+  return (
+    <>
+      <button type="button" className="gif-thumb" style={{ width: size, height: size }} aria-label={`Show GIF of ${title}`}
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+        <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} />
+      </button>
+      {open && (
+        <Modal title={title || 'GIF'} onClose={() => setOpen(false)} wide>
+          <img className="gif-big" src={url} alt={title} />
+        </Modal>
+      )}
+    </>
+  );
+}

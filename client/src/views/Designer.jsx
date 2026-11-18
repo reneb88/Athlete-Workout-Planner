@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, ReTags, SearchBox, Seg, SortableList, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, useApp, useOpenSet } from '../components.jsx';
 import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { SkillEditor } from './Library.jsx';
@@ -308,6 +308,7 @@ export default function Designer({ initialAthlete }) {
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
                                       )}
                                     </div>
+                                    <GifThumb url={sk.gif_url} title={skillLabel(sk)} size={40} />
                                     <button className="icon-btn sm" aria-label={`Duplicate ${sk.id}`} title="Duplicate (copy right below)"
                                       onClick={async (e) => { e.stopPropagation(); setEditing(await duplicateSkill(run, skills, sk)); }}><Icon name="copy" size={18} /></button>
                                     <button className="icon-btn sm" aria-label={`Edit ${sk.name}`} title="Edit this challenge"

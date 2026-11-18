@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, ReTags, SearchBox, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
 import { duplicateSkill } from '../duplicate.js';
@@ -111,6 +111,7 @@ export default function Library() {
                           </div>
                         </div>
                         <div className="row-actions">
+                          <GifThumb url={sk.gif_url} title={skillLabel(sk)} size={44} />
                           {sk.video_url && <button className="icon-btn accent" aria-label="Play video" onClick={() => setVideo(sk)}><Icon name="play" /></button>}
                           {!searching && <>
                             <button className="icon-btn" aria-label="Move up" disabled={i === 0} onClick={() => move(f, i, -1)}><Icon name="up" /></button>
@@ -146,7 +147,7 @@ export function SkillEditor({ skill, onClose }) {
   const isNew = !skill.id;
   const [f, setF] = useState({
     category: 'Manipulation', subcategory: '', family: '', name: '', target: '', level: '', sequence: '',
-    prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', required_elements: '', ...skill,
+    prerequisites: [], related: '', video_url: '', gif_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', required_elements: '', ...skill,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   const subs = [...new Set(skills.filter((s) => s.category === f.category).sort((a, b) => a.sort_order - b.sort_order).map((s) => s.subcategory).filter(Boolean))];
@@ -231,6 +232,12 @@ export function SkillEditor({ skill, onClose }) {
         <Field label="Related manipulation"><input value={f.related} onChange={set('related')} /></Field>
         <Field label="Video link" hint="YouTube, Vimeo or a direct .mp4 link">
           <input type="url" inputMode="url" value={f.video_url} onChange={set('video_url')} placeholder="https://" />
+        </Field>
+        <Field label="GIF link" hint="An animated GIF of the skill (shows as a small moving preview)">
+          <div className="gif-field">
+            <input type="url" inputMode="url" value={f.gif_url} onChange={set('gif_url')} placeholder="https://….gif" />
+            <GifThumb url={f.gif_url} title={f.name} size={44} />
+          </div>
         </Field>
       </div>
       <Field group label="Prerequisites" hint="Search, then tick as many skills as you like — or tick a whole family.">

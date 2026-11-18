@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Disclosure, Empty, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Disclosure, Empty, GifThumb, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import { athleteView, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
@@ -122,6 +122,7 @@ export default function AthleteView({ athleteId }) {
                           {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
                           {s.required_elements && <div className="skill-meta"><ReTags skill={s} /></div>}
                         </div>
+                        <GifThumb url={s.gif_url} title={skillLabel(s)} size={52} />
                         {s.video_url && <button className="icon-btn accent lg" aria-label="Watch demo" onClick={(e) => { e.stopPropagation(); setVideo({ url: s.video_url, title: skillLabel(s) }); }}><Icon name="play" /></button>}
                       </div>
                       {comboByCheckpoint[s.id]?.map((c) => {
@@ -213,6 +214,7 @@ function VideoBoard({ skills, all, combos, onPlay }) {
                       ? <button className="vb-play" onClick={() => onPlay({ url: s.video_url, title: skillLabel(s) })} aria-label={`Watch ${skillLabel(s)}`}><Icon name="play" size={18} /></button>
                       : <span className="vb-play none" title="Video coming soon"><Icon name="play" size={18} /></span>}
                     <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</span>
+                    <GifThumb url={s.gif_url} title={skillLabel(s)} size={44} />
                     {!s.video_url && <small className="muted">video coming soon</small>}
                   </li>
                 ))}

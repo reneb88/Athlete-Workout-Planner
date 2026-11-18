@@ -55,6 +55,7 @@ const SKILL_ALIASES = {
   review_notes: ['Review notes'],
   leads_to: ['Leads to', 'Leads to (next skill family)', 'Next skill'],
   required_elements: ['Required element', 'Required elements', 'Official required element'],
+  gif_url: ['GIF', 'GIF URL', 'GIF link', 'new gif'],
   film_status: ['Film status'],
   film_assignee: ['Film assigned to', 'Filmed by'],
   film_note: ['Film note', 'Filming note'],
@@ -174,6 +175,7 @@ export async function buildWorkbook(store) {
     { header: 'Film status', key: 'film_status', width: 14 },
     { header: 'Film assigned to', key: 'film_assignee', width: 18 },
     { header: 'Film note', key: 'film_note', width: 30 },
+    { header: 'GIF', key: 'gif_url', width: 40 },
   ];
   for (const s of snap.skills) lib.addRow({ ...s, prerequisites: s.prerequisites.join(', '), leads_to: s.leads_to ? s.leads_to.split('|').join(' › ') : '' });
   styleHeader(lib);

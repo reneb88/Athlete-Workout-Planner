@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { familySkills } from './util.js';
 
-const COPY_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'target', 'prerequisites', 'related', 'video_url',
+const COPY_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'target', 'prerequisites', 'related', 'video_url', 'gif_url',
   'teaching_notes', 'common_mistakes', 'review_notes', 'leads_to', 'required_elements'];
 
 /** Copy a challenge (everything except its ID) and place the copy right after the original in its family. */
