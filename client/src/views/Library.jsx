@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
-import { CATEGORIES, buildTree, familyKey, familyName, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, buildsOnMap, familyKey, familyName, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
   const { skills, combos, run } = useApp();
@@ -15,6 +15,7 @@ export default function Library() {
   const [video, setVideo] = useState(null);
   const [famVideo, setFamVideo] = useState(null);
   const tree = useOpenSet(['c:Manipulation']);
+  const buildsOn = useMemo(() => buildsOnMap(skills), [skills]);
 
   const comboBySkill = useMemo(() => {
     const m = {};
@@ -79,7 +80,7 @@ export default function Library() {
               header={<><h3>{s.name}</h3><span className="count">{s.families.reduce((m, f) => m + f.skills.length, 0)}</span></>}>
               {s.families.map((f) => (
                 <Disclosure key={f.key} level={2} open={isOpen(f.key)} onToggle={() => tree.toggle(f.key)}
-                  header={<><h4>{f.name}</h4><span className="count">{f.skills.length}</span>
+                  header={<><h4>{f.name}</h4>{buildsOn[familyKey(f.skills[0])] && <span className="tag back">Builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</span>}<span className="count">{f.skills.length}</span>
                     <button className="btn ghost sm push" onClick={(e) => { e.stopPropagation(); setFamVideo(f); }}>
                       <Icon name="play" size={16} /> Family video</button>
                     <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing({ category: c.name, subcategory: s.name, family: f.name }); }}>

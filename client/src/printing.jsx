@@ -1,4 +1,4 @@
-import { buildTree, familyName, skillLabel } from './util.js';
+import { buildTree, buildsOnMap, familyKey, familyName, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, { skillById, comboById, combos }) {
@@ -22,14 +22,15 @@ export function applyOptions(d, { hideDone = false } = {}) {
 }
 
 /** Branded checklist sheet. Hidden on screen unless inside .print-preview; always shown when printing. */
-export function PrintSheet({ data, skillById, showNotes = false }) {
+export function PrintSheet({ data, skillById, showNotes = false, poster = false }) {
   const { athlete, skills, combos, done, comboByCheckpoint } = data;
+  const buildsOn = buildsOnMap(Object.values(skillById));
   const nodes = buildTree(skills).filter((c) => c.subs.length);
   return (
-    <div className="print-sheet">
+    <div className={`print-sheet ${poster ? 'poster' : ''}`}>
       <header className="ps-head">
         <div className="ps-brand"><img src="/icon.svg" alt="" /><div><strong>ROPEWORKS</strong><span>Training Studio</span></div></div>
-        <div className="ps-who"><h1>{athlete.name}</h1><span>{[athlete.age && `Age ${athlete.age}`, athlete.group_notes, new Date().toLocaleDateString()].filter(Boolean).join(' · ')}</span></div>
+        <div className="ps-who"><h1>{athlete.name}</h1><span>{[athlete.age && `Age ${athlete.age}`, athlete.group_notes, !poster && new Date().toLocaleDateString()].filter(Boolean).join(' · ')}</span></div>
       </header>
       {nodes.length === 0 && combos.length === 0 && <p className="ps-empty">Nothing to practice on this list.</p>}
       {nodes.map((c) => (
@@ -37,7 +38,8 @@ export function PrintSheet({ data, skillById, showNotes = false }) {
           <h2>{c.name}</h2>
           {c.subs.flatMap((s) => s.families.map((f) => (
             <div key={f.key} className="ps-fam">
-              <h3>{f.name} <small>{s.name}</small></h3>
+              <h3>{f.name} <small>{s.name}</small>
+                {buildsOn[familyKey(f.skills[0])] && <small className="ps-builds"> · builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</small>}</h3>
               <ul>
                 {f.skills.map((sk) => (
                   <li key={sk.id}>

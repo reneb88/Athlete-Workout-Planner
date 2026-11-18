@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
-import { CATEGORIES, buildTree, familyName, familySkills, familyWhere, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyWhere, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 
 const emptyWork = () => ({ skills: new Set(), manual: new Set(), dismissed: new Set() });
@@ -21,6 +21,7 @@ export default function Designer({ initialAthlete }) {
   const tree = useOpenSet();
   const lastAuto = useRef(null);
   const autoLoaded = useRef(false); // working set is just an athlete's saved workout, shown automatically
+  const [templateId, setTemplateId] = useState(null); // template currently loaded for editing
   const [batch, setBatch] = useState(null); // athletes from the last group save, for one-by-one adjustments
   const [adjusted, setAdjusted] = useState(() => new Set());
 
@@ -44,6 +45,8 @@ export default function Designer({ initialAthlete }) {
     return s;
   }, [work.manual, work.dismissed, suggested]);
 
+  const buildsOn = useMemo(() => buildsOnMap(skills), [skills]);
+
   // "Try …" steps that lead to another family: offer that family's whole progression.
   const nextUps = useMemo(() => {
     const seen = new Map();
@@ -66,11 +69,13 @@ export default function Designer({ initialAthlete }) {
     });
     setLoadedFrom(label ?? `${athleteById[id]?.name}’s saved workout`);
     autoLoaded.current = !label;
+    setTemplateId(null);
     setDirty(false);
   }
   function loadTemplate(t) {
     setWork({ skills: new Set(t.skill_ids.filter((id) => skillById[id])), manual: new Set(t.combo_ids.filter((id) => comboById[id])), dismissed: new Set(t.dismissed_ids) });
     setLoadedFrom(`Template: ${t.name}`);
+    setTemplateId(t.id);
     setDirty(true);
   }
 
@@ -238,7 +243,7 @@ export default function Designer({ initialAthlete }) {
                         return (
                           <Disclosure key={f.key} level={2} open={isOpen(f.key)} onToggle={() => tree.toggle(f.key)}
                             header={<><Check checked={triState(fIds)} onChange={(on) => setSkills(fIds, on)} label={`Select whole ${f.name} progression`} />
-                              <h4>{f.name}</h4><span className="count">{fIds.filter((id) => work.skills.has(id)).length}/{fIds.length}</span></>}>
+                              <h4>{f.name}</h4>{buildsOn[familyKey(f.skills[0])] && <span className="tag back">Builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</span>}<span className="count">{fIds.filter((id) => work.skills.has(id)).length}/{fIds.length}</span></>}>
                             <ol className="skill-list pick">
                               {f.skills.map((sk, i) => {
                                 const on = work.skills.has(sk.id);
@@ -300,7 +305,14 @@ export default function Designer({ initialAthlete }) {
             <div className="btn-row">
               <button className="btn ghost sm" onClick={() => setModal('copy')}><Icon name="copy" size={18} /> Copy from…</button>
               <button className="btn ghost sm" onClick={() => setModal('templates')}><Icon name="file" size={18} /> Templates</button>
-              <button className="btn ghost sm" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('saveTemplate')}>Save as template</button>
+              {templateId && templates.some((t) => t.id === templateId) && (
+                <button className="btn sm" onClick={async () => {
+                  const t = templates.find((x) => x.id === templateId);
+                  await run(() => api.updateTemplate(templateId, payload()), `Template “${t.name}” updated`);
+                  if (!selected.length) setDirty(false);
+                }}>Update template “{templates.find((t) => t.id === templateId)?.name}”</button>
+              )}
+              <button className="btn ghost sm" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('saveTemplate')}>Save as {templateId ? 'new ' : ''}template</button>
               {selected.length === 1 && <button className="btn ghost sm" onClick={() => go('athlete', selected[0])}><Icon name="user" size={18} /> Athlete view</button>}
               {selected.length > 0 && <button className="btn ghost sm" disabled={dirty} title={dirty ? 'Save first' : ''} onClick={() => go('print', selected.join(','))}><Icon name="print" size={18} /> Print {selected.length > 1 ? selected.length : ''}</button>}
               <button className="btn ghost sm danger-text" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('clear')}>Clear</button>
@@ -402,11 +414,11 @@ export default function Designer({ initialAthlete }) {
       {modal === 'templates' && <TemplatesModal templates={templates} onLoad={(t) => { loadTemplate(t); setModal(null); }} onClose={() => setModal(null)} />}
       {modal === 'saveTemplate' && (
         <SaveTemplateModal onClose={() => setModal(null)}
-          onSave={async (name, description) => { await run(() => api.createTemplate({ name, description, ...payload() }), `Template “${name}” saved`); setModal(null); }} />
+          onSave={async (name, description) => { const r = await run(() => api.createTemplate({ name, description, ...payload() }), `Template “${name}” saved`); setTemplateId(r.id); setLoadedFrom(`Template: ${name}`); setModal(null); }} />
       )}
       {modal === 'clear' && (
         <Confirm text="Clear every challenge and combo from the designer? Nothing is saved until you press Save." confirmLabel="Clear"
-          onConfirm={() => { setWork(emptyWork()); setDirty(true); setLoadedFrom(null); }} onClose={() => setModal(null)} />
+          onConfirm={() => { setWork(emptyWork()); setDirty(true); setLoadedFrom(null); setTemplateId(null); }} onClose={() => setModal(null)} />
       )}
     </div>
   );

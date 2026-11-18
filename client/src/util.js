@@ -171,3 +171,15 @@ export function familyOptions(skills) {
     })),
   })).filter((c) => c.families.length);
 }
+
+/** Reverse of "Leads to": family key → names of the families that lead into it ("Builds on: …"). */
+export function buildsOnMap(skills) {
+  const m = {};
+  for (const s of skills) {
+    if (!s.leads_to) continue;
+    const from = s.family || 'General';
+    const list = (m[s.leads_to] ||= []);
+    if (!list.includes(from)) list.push(from);
+  }
+  return m;
+}

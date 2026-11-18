@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { buildTree, familyName, skillLabel, splitVideo } from '../util.js';
+import { buildTree, buildsOnMap, familyKey, familyName, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -9,6 +9,7 @@ import { PrintSheet } from '../printing.jsx';
 export default function AthleteView({ athleteId }) {
   const app = useApp();
   const { athleteById, skillById, comboById, combos, toast } = app;
+  const buildsOn = useMemo(() => buildsOnMap(app.skills), [app.skills]);
   const athlete = athleteById[athleteId];
   const [w, setW] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -87,7 +88,8 @@ export default function AthleteView({ athleteId }) {
           const d = allSkillsInFam.filter((s) => done.has(`skill:${s.id}`)).length;
           return (
             <Disclosure key={f.key} level={2} open={tree.isOpen(f.key)} onToggle={() => tree.toggle(f.key)} className={`fam-card cat-${f.category.toLowerCase()}`}
-              header={<><div className="fam-title"><h3>{f.name}</h3><small>{f.category} › {f.sub}</small></div>
+              header={<><div className="fam-title"><h3>{f.name}</h3><small>{f.category} › {f.sub}</small>
+                  {buildsOn[familyKey(f.skills[0])] && <small className="builds-on">Builds on: {buildsOn[familyKey(f.skills[0])].join(', ')}</small>}</div>
                 {(() => {
                   const bases = [...new Set(f.skills.map((x) => splitVideo(x.video_url).base).filter(Boolean))];
                   return bases.length === 1 && f.skills.filter((x) => x.video_url).length > 1 && (
