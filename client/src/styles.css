@@ -61,6 +61,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 1360px) { .tabs .long { display: none; } .tabs .short { display: inline; } }
 @media (max-width: 640px) { .brand-text { display: none; } .tabs a { padding: 0 11px; font-size: 15px; } }
 
+/* ---------- Sign in ---------- */
+.signout { margin-left: 8px; border: 1.5px solid rgba(255,255,255,.25); background: transparent; color: #c9d4e6; border-radius: 12px; min-height: 44px; padding: 0 14px; font-weight: 600; cursor: pointer; white-space: nowrap; align-self: center; }
+.login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: radial-gradient(circle at 80% 10%, rgba(255,90,31,.35), transparent 40%), linear-gradient(135deg, var(--navy), #1d3a6b); }
+.login-card { background: #fff; border-radius: 24px; padding: 32px 28px; width: min(420px, 100%); display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.35); text-align: center; }
+.login-logo { width: 72px; height: 72px; margin: 0 auto; }
+.login-brand { display: flex; flex-direction: column; line-height: 1; margin-bottom: 6px; }
+.login-brand strong { font-size: 26px; font-weight: 800; font-style: italic; letter-spacing: .08em; color: var(--navy); }
+.login-brand small { font-size: 11px; letter-spacing: .26em; text-transform: uppercase; color: var(--orange); font-weight: 700; margin-top: 4px; }
+.login-card h1 { font-size: 24px; }
+.login-card input[type=password], .login-card input[type=text] { width: 100%; min-height: 54px; padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--line); font-size: 18px; }
+.show-pw { display: flex; align-items: center; gap: 8px; justify-content: flex-start; font-size: 15px; color: var(--ink-2); min-height: 40px; }
+.show-pw input { width: 20px; height: 20px; }
+.login-err { color: var(--err); font-weight: 700; margin: 0; }
+.login-card code { background: var(--line-2); padding: 1px 6px; border-radius: 6px; }
+.pw-form { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.pw-form input { width: 100%; min-height: 48px; padding: 10px 14px; border-radius: 12px; border: 1.5px solid var(--line); font-size: 17px; }
+
 /* ---------- Layout ---------- */
 .main { padding: 24px 20px calc(env(safe-area-inset-bottom) + 60px); max-width: 1400px; margin: 0 auto; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }

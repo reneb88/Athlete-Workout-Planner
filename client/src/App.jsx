@@ -9,6 +9,7 @@ import AthleteView from './views/AthleteView.jsx';
 import DataPage from './views/DataPage.jsx';
 import PrintCenter from './views/PrintCenter.jsx';
 import Spreadsheet from './views/Spreadsheet.jsx';
+import Login from './views/Login.jsx';
 
 const NAV = [
   { id: 'designer', label: 'Workout Designer', short: 'Designer' },
@@ -34,12 +35,23 @@ export default function App() {
   const [error, setError] = useState(null);
   const [route, setRoute] = useState(parseHash);
   const [toasts, setToasts] = useState([]);
+  const [auth, setAuth] = useState(null); // { hasPassword, authed }
+
+  const checkAuth = useCallback(async () => {
+    try { setAuth(await api.authStatus()); } catch (e) { setError(e.message); }
+  }, []);
+  useEffect(() => { checkAuth(); }, [checkAuth]);
+  useEffect(() => {
+    const out = () => { setData(null); setAuth((a) => ({ hasPassword: true, ...a, authed: false })); };
+    window.addEventListener('rw-signed-out', out);
+    return () => window.removeEventListener('rw-signed-out', out);
+  }, []);
 
   const reload = useCallback(async () => {
     try { setData(await api.state()); setError(null); } catch (e) { setError(e.message); }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { if (auth?.authed) reload(); }, [auth?.authed, reload]);
   useEffect(() => {
     const f = () => { setRoute(parseHash()); window.scrollTo(0, 0); };
     window.addEventListener('hashchange', f);
@@ -75,6 +87,15 @@ export default function App() {
 
   const athleteMode = route.page === 'athlete';
 
+  if (!auth) return <div className="loading">{error ? `Couldn’t reach the Ropeworks server: ${error}` : 'Loading…'}</div>;
+  if (!auth.authed) return <Login hasPassword={auth.hasPassword} onDone={() => { setError(null); checkAuth(); }} />;
+
+  async function signOut() {
+    try { await api.logout(); } catch { /* ignore */ }
+    setData(null);
+    setAuth({ hasPassword: true, authed: false });
+  }
+
   return (
     <div className={`app ${athleteMode ? 'athlete-mode' : ''}`}>
       <header className="topbar no-print">
@@ -88,6 +109,7 @@ export default function App() {
               <span className="long">{n.label}</span><span className="short">{n.short}</span>
             </a>
           ))}
+          <button className="signout" onClick={signOut} title="Sign out">Sign out</button>
         </nav>
       </header>
       <main className="main">

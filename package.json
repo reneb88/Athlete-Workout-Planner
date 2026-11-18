@@ -8,7 +8,8 @@
     "dev": "concurrently -k -n api,web \"node --disable-warning=ExperimentalWarning --watch server/index.js\" \"vite\"",
     "build": "vite build",
     "start": "node --disable-warning=ExperimentalWarning server/index.js",
-    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js"
+    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js",
+    "reset-password": "node --disable-warning=ExperimentalWarning server/reset-password.js"
   },
   "engines": {
     "node": ">=22.13"

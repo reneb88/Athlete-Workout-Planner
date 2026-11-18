@@ -45,7 +45,36 @@ export default function DataPage() {
             <p className="banner ok">Imported {result.skills} challenges, {result.athletes} athletes, {result.combos} combos, {result.assignments} assignments, {result.progress} progress marks, {result.templates} templates.</p>
           )}
         </section>
+        <ChangePassword />
       </div>
     </div>
+  );
+}
+
+function ChangePassword() {
+  const { toast } = useApp();
+  const [f, setF] = useState({ current: '', next: '', again: '' });
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
+  async function save(e) {
+    e.preventDefault();
+    if (f.next !== f.again) { toast('The new passwords don’t match', 'err'); return; }
+    setBusy(true);
+    try {
+      await api.changePassword(f.current, f.next);
+      toast('Password changed. Other devices will need to sign in again.');
+      setF({ current: '', next: '', again: '' });
+    } catch (err) { toast(err.message, 'err'); } finally { setBusy(false); }
+  }
+  return (
+    <section className="card">
+      <h2>Coach password</h2>
+      <form className="pw-form" onSubmit={save}>
+        <input type="password" placeholder="Current password" autoComplete="current-password" value={f.current} onChange={set('current')} aria-label="Current password" />
+        <input type="password" placeholder="New password" autoComplete="new-password" value={f.next} onChange={set('next')} aria-label="New password" />
+        <input type="password" placeholder="New password again" autoComplete="new-password" value={f.again} onChange={set('again')} aria-label="New password again" />
+        <button className="btn" disabled={busy || !f.current || !f.next}>Change password</button>
+      </form>
+    </section>
   );
 }

@@ -91,3 +91,27 @@ test('original Ropeworks workbook (if present locally) imports roster too', { sk
   assert.equal(d.athletes.length, 49);
   assert.equal(d.combos.length, 2);
 });
+
+test('API requires the coach password', async () => {
+  const { createApp } = await import('../index.js');
+  const app = await createApp({ dbFile: ':memory:', seedFile: path.join(ROOT, 'data', 'library-seed.xlsx') });
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (u, body, cookie) => fetch(base + u, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(cookie ? { cookie } : {}) }, body: JSON.stringify(body) });
+  try {
+    assert.deepEqual(await (await fetch(base + '/api/auth')).json(), { hasPassword: false, authed: false });
+    assert.equal((await fetch(base + '/api/state')).status, 401);
+    assert.equal((await fetch(base + '/api/export.xlsx')).status, 401);
+    assert.equal((await post('/api/auth/setup', { password: '123' })).status, 400);
+    const setup = await post('/api/auth/setup', { password: 'test-pass-1' });
+    assert.equal(setup.status, 200);
+    const cookie = setup.headers.get('set-cookie').split(';')[0];
+    assert.equal((await fetch(base + '/api/state', { headers: { cookie } })).status, 200);
+    assert.equal((await post('/api/auth/setup', { password: 'another1' })).status, 409);
+    assert.equal((await post('/api/auth/login', { password: 'wrong' })).status, 401);
+    const login = await post('/api/auth/login', { password: 'test-pass-1' });
+    assert.equal(login.status, 200);
+    await post('/api/auth/logout', {}, cookie);
+    assert.equal((await fetch(base + '/api/state', { headers: { cookie } })).status, 401);
+  } finally { server.close(); }
+});

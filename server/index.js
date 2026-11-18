@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
+import { initAuth } from './auth.js';
 import { parseWorkbook, buildWorkbook } from './workbook.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,6 +31,19 @@ export async function createApp({ dbFile, seedFile } = {}) {
       res.status(e.status || 500).json({ error: e.message || 'Server error' });
     }
   };
+
+  // ---------- Coach login ----------
+  const auth = initAuth(store.db);
+  app.get('/api/auth', (req, res) => res.json({ hasPassword: auth.hasPassword(), authed: auth.isAuthed(req) }));
+  app.post('/api/auth/setup', h((req, res) => { auth.setup(req, res, req.body?.password); }));
+  app.post('/api/auth/login', h((req, res) => { auth.login(req, res, req.body?.password); }));
+  app.post('/api/auth/logout', h((req, res) => { auth.logout(req, res); }));
+  app.post('/api/auth/change', h((req, res) => {
+    if (!auth.isAuthed(req)) throw Object.assign(new Error('Please sign in'), { status: 401 });
+    auth.change(req, res, req.body?.current, req.body?.next);
+  }));
+  // Everything else under /api requires a signed-in coach.
+  app.use('/api', (req, res, next) => (auth.isAuthed(req) ? next() : res.status(401).json({ error: 'Please sign in' })));
 
   app.get('/api/state', h(() => store.snapshot()));
 

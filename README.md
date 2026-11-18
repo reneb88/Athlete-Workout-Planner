@@ -27,6 +27,8 @@ An iPad-friendly web app for planning and tracking jump rope training: a master 
    - Keep the black window open while you use the app, and close it to stop.
 4. **On your iPad**: while the app is running on your computer, the black window shows an *“On your iPad”* address, for example `http://192.168.1.20:3001`. Open that address in Safari on the same Wi-Fi.
 
+**Coach password.** The first time you open the app, it asks you to create a coach password. Every device has to sign in once and then stays signed in. You can change the password under **Import/Export → Coach password**. If you forget it, double-click **`Reset Password (Windows).bat`** (or the Mac `.command` file, or run `npm run reset-password`) and then create a new one. Your data is kept. The password is stored only as a salted hash in your local database, never in this repository.
+
 Your data lives in `data/ropeworks.db` inside the project folder. Back it up by copying that file, or by using **Import / Export → Download spreadsheet**.
 
 For developers: run `npm install`, then `npm run dev` (hot reload on :5173), `npm test` or `npm start`.
@@ -49,4 +51,4 @@ docker build -t ropeworks .
 docker run -p 3001:3001 -v ropeworks-data:/data ropeworks
 ```
 
-Any host that supports Docker and a persistent disk will work (Render, Railway, Fly.io, a small VPS, and so on). The app has **no login**. Before you put it on the public internet, put it behind your host's password protection or access control.
+Any host that supports Docker and a persistent disk will work (Render, Railway, Fly.io, a small VPS, and so on). The app is protected by the coach password. If you put it on the public internet, serve it over HTTPS.

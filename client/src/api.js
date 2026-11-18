@@ -5,11 +5,17 @@ async function req(method, url, body, raw) {
     body: raw ? body : body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !url.startsWith('/api/auth')) window.dispatchEvent(new Event('rw-signed-out'));
   if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data;
 }
 
 export const api = {
+  authStatus: () => req('GET', '/api/auth'),
+  setupPassword: (password) => req('POST', '/api/auth/setup', { password }),
+  login: (password) => req('POST', '/api/auth/login', { password }),
+  logout: () => req('POST', '/api/auth/logout', {}),
+  changePassword: (current, next) => req('POST', '/api/auth/change', { current, next }),
   state: () => req('GET', '/api/state'),
   createSkill: (s) => req('POST', '/api/skills', s),
   updateSkill: (id, s) => req('PUT', `/api/skills/${encodeURIComponent(id)}`, s),
