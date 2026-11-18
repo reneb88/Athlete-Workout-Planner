@@ -30,7 +30,7 @@ export default function DataPage() {
           <h2>Export</h2>
           <p>Downloads one workbook with the Master Library, Athlete Roster, Combo Library, every athlete’s assignments, progress and templates.</p>
           <p className="muted small">Currently: {skills.length} challenges · {athletes.length} athletes · {combos.length} combos · {templates.length} templates</p>
-          <a className="btn primary" href="/api/export.xlsx" download><Icon name="file" /> Download spreadsheet</a>
+          <a className="btn primary" href="/api/export.xlsx" download={`Athlete Workout Planner ${new Date().toISOString().slice(0, 10)}.xlsx`}><Icon name="file" /> Download spreadsheet</a>
         </section>
         <section className="card">
           <h2>Import</h2>

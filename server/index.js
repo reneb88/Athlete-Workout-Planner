@@ -78,7 +78,7 @@ export async function createApp({ dbFile, seedFile } = {}) {
     const buf = await buildWorkbook(store);
     const stamp = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Ropeworks-Training-Studio-${stamp}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Athlete Workout Planner ${stamp}.xlsx"`);
     res.end(buf);
   }));
 
