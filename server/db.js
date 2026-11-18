@@ -519,7 +519,10 @@ class Store {
       }
       for (const t of data.templates || []) {
         if (!str(t.name)) continue;
-        this.createTemplate(t);
+        // A template with the same name is updated, not duplicated, so re-importing is safe.
+        const existing = d.prepare('SELECT id FROM templates WHERE lower(name) = lower(?)').get(str(t.name));
+        if (existing) this.updateTemplate(existing.id, t);
+        else this.createTemplate(t);
         counts.templates++;
       }
     });

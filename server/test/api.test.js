@@ -131,3 +131,12 @@ test('"Try" steps link to the family they lead to', async () => {
   b.importData({ skills: [{ id: 'S202', category: 'Manipulation', subcategory: 'Arm Action/Crosses', family: 'Cross', name: 'Try CC #1' }] });
   assert.equal(b.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
 });
+
+test('re-importing an exported workbook does not duplicate templates', async () => {
+  const s = await fresh();
+  s.createTemplate({ name: 'Apples', skill_ids: ['S001'] });
+  const buf = await buildWorkbook(s);
+  s.importData(await parseWorkbook(buf));
+  s.importData(await parseWorkbook(buf));
+  assert.equal(s.snapshot().templates.filter((t) => t.name === 'Apples').length, 1);
+});
