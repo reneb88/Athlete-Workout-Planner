@@ -256,3 +256,13 @@ export function athleteView(athlete, settings = {}) {
   const age = parseFloat(athlete?.age);
   return from > 0 && Number.isFinite(age) && age >= from ? 'videos' : 'checklist';
 }
+
+/** Names of a skill's prerequisites, e.g. "Cross open, Side swing" (family name added when it differs). */
+export function prereqText(skill, skillById) {
+  return (skill?.prerequisites || []).map((id) => {
+    const p = skillById[id];
+    if (!p) return null;
+    return p.family && p.family.trim().toLowerCase() !== String(skill.family).trim().toLowerCase() && p.name.toLowerCase() !== p.family.toLowerCase()
+      ? `${p.family}: ${skillLabel(p)}` : skillLabel(p);
+  }).filter(Boolean).join(', ');
+}

@@ -158,6 +158,10 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .next-item { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #fff; border-radius: 12px; padding: 10px 12px; border: 1.5px solid #c9dafc; }
 .next-item .added { color: var(--ok); font-weight: 700; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .combo-next { color: #c2410c !important; }
+.ci-prereq { font-size: 14px; color: var(--ink-2); font-style: italic; }
+.vb-prereq, .vb-next { display: block; font-weight: 500; font-size: 13px; color: var(--ink-2); font-style: italic; }
+.vb-next { color: #1d4ed8; font-style: normal; font-weight: 600; }
+.vb-builds { display: block; }
 .ci-next { font-size: 14px; font-weight: 700; color: #1d4ed8; margin-top: 2px; }
 .tag.back { background: #f1f5f9; color: var(--ink-2); font-weight: 600; font-style: italic; }
 .builds-on { color: #1d4ed8 !important; font-weight: 600; }

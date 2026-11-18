@@ -1,4 +1,4 @@
-import { athleteView, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { athleteView, prereqText, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, ctx) {
@@ -49,6 +49,7 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
                     <span>{skillLabel(sk)}{isVariant(sk, f) && <small className="ps-variant"> ({sk.subcategory || sk.category})</small>}</span>
                     {sk.video_url && <a className="ps-link" href={shareUrl(sk.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
                     {showNotes && sk.teaching_notes && <em className="ps-note">{sk.teaching_notes}</em>}
+                    {prereqText(sk, skillById) && <em className="ps-note">Before this: {prereqText(sk, skillById)}</em>}
                     {sk.leads_to && <em className="ps-note">→ Next skill: {familyName(sk.leads_to)}</em>}
                     {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this {cb.kind}: {cb.name}{cb.video_url && <a className="ps-link" href={shareUrl(cb.video_url)} target="_blank" rel="noreferrer">▶ video</a>}</em>)}
                   </li>

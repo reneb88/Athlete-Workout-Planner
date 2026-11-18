@@ -1,4 +1,4 @@
-import { buildTree, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { prereqText, buildTree, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 // Compact, two-column, paper-saving checklist PDF.
 const NAVY = [11, 30, 58];
@@ -127,7 +127,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
         y += 14;
         for (const sk of f.skills) {
           item(skillLabel(sk) + (isVariant(sk, f) ? ` (${sk.subcategory || sk.category})` : ''), {
-            done: done.has(`skill:${sk.id}`), url: sk.video_url ? shareUrl(sk.video_url) : '', gif: sk.gif_url || '', note: showNotes ? sk.teaching_notes : '',
+            done: done.has(`skill:${sk.id}`), url: sk.video_url ? shareUrl(sk.video_url) : '', gif: sk.gif_url || '', note: [prereqText(sk, Object.fromEntries(all.map((x) => [x.id, x]))) && `Before this: ${prereqText(sk, Object.fromEntries(all.map((x) => [x.id, x])))}`, showNotes ? sk.teaching_notes : ''].filter(Boolean).join(' · '),
           });
           for (const cb of comboByCheckpoint[sk.id] || []) {
             item(`Try this combo: ${cb.name}`, { done: done.has(`combo:${cb.id}`), url: cb.video_url ? shareUrl(cb.video_url) : '', color: ORANGE, style: 'bolditalic' });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, GifThumb, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { athleteView, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
+import { athleteView, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -90,7 +90,7 @@ export default function AthleteView({ athleteId }) {
       {total === 0 && <Empty title="Nothing assigned yet">Use the Workout Designer to assign challenges to {athlete.name}.</Empty>}
 
       {board ? (
-        <VideoBoard skills={assignedSkills} all={app.skills} combos={assignedCombos} onPlay={setVideo} />
+        <VideoBoard skills={assignedSkills} all={app.skills} combos={assignedCombos} onPlay={setVideo} skillById={skillById} />
       ) : <div className="no-print">
         {families.length === 0 && assignedSkills.length > 0 && <Empty title={filter === 'done' ? 'Nothing checked off yet' : 'Everything is done — nice work!'} />}
         {families.map((f) => {
@@ -119,6 +119,7 @@ export default function AthleteView({ athleteId }) {
                         <div className="grow">
                           <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</div>
                           {s.teaching_notes && <div className="ci-notes">{s.teaching_notes}</div>}
+                          {prereqText(s, skillById) && <div className="ci-prereq">Before this: {prereqText(s, skillById)}</div>}
                           {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
                           {s.required_elements && <div className="skill-meta"><ReTags skill={s} /></div>}
                         </div>
@@ -189,7 +190,8 @@ export default function AthleteView({ athleteId }) {
 }
 
 /** Video board (older athletes): families as cards with the whole video and each skill's clip — no checklist. */
-function VideoBoard({ skills, all, combos, onPlay }) {
+function VideoBoard({ skills, all, combos, onPlay, skillById }) {
+  const buildsOn = buildsOnMap(all);
   const fams = buildTree(skills, all).flatMap((c) => c.subs.flatMap((s) => s.families.map((f) => ({ ...f, cat: c.name, sub: s.name }))));
   const wholeOf = (f) => {
     const steps = familySkills(all, f.name);
@@ -204,7 +206,8 @@ function VideoBoard({ skills, all, combos, onPlay }) {
           return (
             <article key={f.key} className={`card vb-card cat-${f.cat.toLowerCase()}`}>
               <div className="vb-head">
-                <div className="grow"><h3>{f.name}</h3><small className="muted">{f.cat} › {f.sub}</small></div>
+                <div className="grow"><h3>{f.name}</h3><small className="muted">{f.cat} › {f.sub}</small>
+                  {buildsOn[familyKey(f.skills[0])] && <small className="builds-on vb-builds">Builds on: {buildsOn[familyKey(f.skills[0])].join(', ')}</small>}</div>
                 {whole && <button className="btn primary sm" onClick={() => onPlay({ url: whole, title: `${f.name} – whole video` })}><Icon name="play" size={16} /> Whole video</button>}
               </div>
               <ul className="vb-list">
@@ -213,7 +216,9 @@ function VideoBoard({ skills, all, combos, onPlay }) {
                     {s.video_url
                       ? <button className="vb-play" onClick={() => onPlay({ url: s.video_url, title: skillLabel(s) })} aria-label={`Watch ${skillLabel(s)}`}><Icon name="play" size={18} /></button>
                       : <span className="vb-play none" title="Video coming soon"><Icon name="play" size={18} /></span>}
-                    <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</span>
+                    <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}
+                      {prereqText(s, skillById) && <small className="vb-prereq">Before this: {prereqText(s, skillById)}</small>}
+                      {s.leads_to && <small className="vb-next">→ Next skill: {familyName(s.leads_to)}</small>}</span>
                     <GifThumb url={s.gif_url} title={skillLabel(s)} size={44} />
                     {!s.video_url && <small className="muted">video coming soon</small>}
                   </li>
