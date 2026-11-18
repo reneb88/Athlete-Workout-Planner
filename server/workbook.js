@@ -83,6 +83,7 @@ export async function parseWorkbook(buffer) {
     name: ['Athlete name', 'Name'],
     group_notes: ['Group / notes', 'Group', 'Notes'],
     age: ['Age'],
+    view_style: ['Athlete page', 'View style'],
   }).filter((a) => a.name).map((a, i) => ({ ...a, id: a.id || `A${String(i + 1).padStart(2, '0')}` }));
 
   const combos = readTable(sheet('Combo Library'), 'Combo ID', {
@@ -183,6 +184,7 @@ export async function buildWorkbook(store) {
     { header: 'Athlete name', key: 'name', width: 26 },
     { header: 'Group / notes', key: 'group_notes', width: 30 },
     { header: 'Age', key: 'age', width: 8 },
+    { header: 'Athlete page', key: 'view_style', width: 14 },
   ];
   snap.athletes.forEach((a) => ros.addRow(a));
   styleHeader(ros);

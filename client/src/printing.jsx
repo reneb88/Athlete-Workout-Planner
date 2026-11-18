@@ -1,4 +1,4 @@
-import { buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { athleteView, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, ctx) {
@@ -9,7 +9,7 @@ export function sheetData(athlete, w, ctx) {
   const comboByCheckpoint = {};
   combos.forEach((c) => { if (active.has(c.id)) c.checkpoints.forEach((s) => (comboByCheckpoint[s] ||= []).push(c)); });
   const done = new Set(w.progress.map((p) => `${p.item_type}:${p.item_id}`));
-  return { athlete, skills, combos: assigned, done, comboByCheckpoint, all: ctx.skills };
+  return { athlete, skills, combos: assigned, done, comboByCheckpoint, all: ctx.skills, videoBoard: athleteView(athlete, ctx.settings) === 'videos' };
 }
 
 /** Apply print options (e.g. leave out what the athlete already completed). */
@@ -23,12 +23,12 @@ export function applyOptions(d, { hideDone = false } = {}) {
 }
 
 /** Branded checklist sheet. Hidden on screen unless inside .print-preview; always shown when printing. */
-export function PrintSheet({ data, skillById, showNotes = false, poster = false, hideCategories = false }) {
+export function PrintSheet({ data, skillById, showNotes = false, poster = false, hideCategories = false, videoBoard = data.videoBoard }) {
   const { athlete, skills, combos, done, comboByCheckpoint } = data;
   const buildsOn = buildsOnMap(Object.values(skillById));
   const nodes = buildTree(skills, Object.values(skillById)).filter((c) => c.subs.length);
   return (
-    <div className={`print-sheet ${poster ? 'poster' : ''}`}>
+    <div className={`print-sheet ${poster ? 'poster' : ''} ${videoBoard ? 'video-board' : ''}`}>
       <header className="ps-head">
         <div className="ps-brand"><img src="/icon.svg" alt="" /><div><strong>ROPEWORKS</strong><span>Training Studio</span></div></div>
         <div className="ps-who"><h1>{athlete.name}</h1><span>{[athlete.age && `Age ${athlete.age}`, athlete.group_notes, !poster && new Date().toLocaleDateString()].filter(Boolean).join(' · ')}</span></div>

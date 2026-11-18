@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { buildTree, buildsOnMap, famId, familyKey, familyName, isVariant, skillLabel, splitVideo } from '../util.js';
+import { athleteView, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -53,26 +53,35 @@ export default function AthleteView({ athleteId }) {
   const routines = assignedCombos.filter((c) => c.kind === 'routine');
   const comboList = assignedCombos.filter((c) => c.kind !== 'routine');
 
+  const board = athleteView(athlete, app.settings) === 'videos';
+  const setView = (v) => app.run(() => api.updateAthlete(athlete.id, { view_style: v }), v ? `${athlete.name}: ${v === 'videos' ? 'video board' : 'checklist'}` : `${athlete.name}: automatic by age`);
+
   return (
     <div className="page athlete-view">
       <div className="athlete-hero no-print">
         <button className="btn ghost sm back" onClick={() => go('athletes')}><Icon name="chevron" size={18} /> Athletes</button>
         <div className="hero-row">
           <div>
-            <p className="eyebrow">Ropeworks training plan</p>
+            <p className="eyebrow">{board ? 'Ropeworks video board' : 'Ropeworks training plan'}</p>
             <h1>{athlete.name}</h1>
             <p className="muted">{[athlete.age && `Age ${athlete.age}`, athlete.group_notes].filter(Boolean).join(' · ')}</p>
           </div>
-          <div className="ring" style={{ '--p': pct }} aria-label={`${pct}% complete`}><span>{pct}%</span><small>{complete}/{total}</small></div>
+          {!board && <div className="ring" style={{ '--p': pct }} aria-label={`${pct}% complete`}><span>{pct}%</span><small>{complete}/{total}</small></div>}
         </div>
         <div className="toolbar">
-          <Seg value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'todo', label: 'To do' }, { value: 'done', label: 'Done' }]} />
+          <Seg value={board ? 'videos' : 'checklist'} onChange={setView} options={[{ value: 'checklist', label: 'Checklist' }, { value: 'videos', label: 'Video board' }]} />
+          {athlete.view_style
+            ? <button className="btn ghost sm" onClick={() => setView('')}>Use automatic (age {app.settings?.videoBoardAge ?? 13}+ = video board)</button>
+            : <small className="muted auto-note">Automatic by age</small>}
+          {!board && <Seg value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'todo', label: 'To do' }, { value: 'done', label: 'Done' }]} />}
           <div className="btn-group">
-            <button className="btn ghost sm" onClick={() => tree.setMany(families.map((f) => f.key), true)}>Expand all</button>
-            <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
+            {!board && <>
+              <button className="btn ghost sm" onClick={() => tree.setMany(families.map((f) => f.key), true)}>Expand all</button>
+              <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
+            </>}
             <button className="btn sm" onClick={() => window.print()}><Icon name="print" size={18} /> Print</button>
             <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
-            <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills })}><Icon name="file" size={18} /> PDF</button>
+            <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board })}><Icon name="file" size={18} /> PDF</button>
             <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
           </div>
         </div>
@@ -80,7 +89,9 @@ export default function AthleteView({ athleteId }) {
 
       {total === 0 && <Empty title="Nothing assigned yet">Use the Workout Designer to assign challenges to {athlete.name}.</Empty>}
 
-      <div className="no-print">
+      {board ? (
+        <VideoBoard skills={assignedSkills} all={app.skills} combos={assignedCombos} onPlay={setVideo} />
+      ) : <div className="no-print">
         {families.length === 0 && assignedSkills.length > 0 && <Empty title={filter === 'done' ? 'Nothing checked off yet' : 'Everything is done — nice work!'} />}
         {families.map((f) => {
           const n = f.skills.length;
@@ -168,10 +179,65 @@ export default function AthleteView({ athleteId }) {
             ))}
           </section>
         )}
-      </div>
+      </div>}
 
-      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint }} skillById={skillById} />
+      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint }} skillById={skillById} videoBoard={board} />
       {video && <VideoModal url={video.url} title={video.title} onClose={() => setVideo(null)} />}
+    </div>
+  );
+}
+
+/** Video board (older athletes): families as cards with the whole video and each skill's clip — no checklist. */
+function VideoBoard({ skills, all, combos, onPlay }) {
+  const fams = buildTree(skills, all).flatMap((c) => c.subs.flatMap((s) => s.families.map((f) => ({ ...f, cat: c.name, sub: s.name }))));
+  const wholeOf = (f) => {
+    const steps = familySkills(all, f.name);
+    const bases = [...new Set(steps.map((x) => splitVideo(x.video_url).base).filter(Boolean))];
+    return bases.length === 1 && steps.filter((x) => x.video_url).length > 1 ? bases[0] : '';
+  };
+  return (
+    <div className="no-print">
+      <div className="vb-grid">
+        {fams.map((f) => {
+          const whole = wholeOf(f);
+          return (
+            <article key={f.key} className={`card vb-card cat-${f.cat.toLowerCase()}`}>
+              <div className="vb-head">
+                <div className="grow"><h3>{f.name}</h3><small className="muted">{f.cat} › {f.sub}</small></div>
+                {whole && <button className="btn primary sm" onClick={() => onPlay({ url: whole, title: `${f.name} – whole video` })}><Icon name="play" size={16} /> Whole video</button>}
+              </div>
+              <ul className="vb-list">
+                {f.skills.map((s) => (
+                  <li key={s.id}>
+                    {s.video_url
+                      ? <button className="vb-play" onClick={() => onPlay({ url: s.video_url, title: skillLabel(s) })} aria-label={`Watch ${skillLabel(s)}`}><Icon name="play" size={18} /></button>
+                      : <span className="vb-play none" title="Video coming soon"><Icon name="play" size={18} /></span>}
+                    <span className="grow">{s.name}{s.target && <span className="target">{s.target}</span>}{isVariant(s, f) && <span className="tag variant">{s.subcategory || s.category}</span>}</span>
+                    {!s.video_url && <small className="muted">video coming soon</small>}
+                  </li>
+                ))}
+              </ul>
+            </article>
+          );
+        })}
+        {combos.length > 0 && (
+          <article className="card vb-card vb-combos">
+            <div className="vb-head"><div className="grow"><h3><Icon name="bolt" size={18} /> Combos & routines</h3></div></div>
+            <ul className="vb-list">
+              {combos.map((c) => (
+                <li key={c.id}>
+                  {c.video_url
+                    ? <button className="vb-play" onClick={() => onPlay({ url: c.video_url, title: c.name })} aria-label={`Watch ${c.name}`}><Icon name="play" size={18} /></button>
+                    : <span className="vb-play none"><Icon name="play" size={18} /></span>}
+                  <span className="grow">{c.name} <small className="muted">({c.kind})</small></span>
+                  {!c.video_url && <small className="muted">video coming soon</small>}
+                </li>
+              ))}
+            </ul>
+          </article>
+        )}
+      </div>
+      {fams.length === 0 && combos.length === 0 && <Empty title="Nothing assigned yet" />}
     </div>
   );
 }

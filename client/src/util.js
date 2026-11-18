@@ -248,3 +248,11 @@ export function familyVideoUrl(familySteps) {
   const bases = [...new Set(familySteps.map((s) => splitVideo(s.video_url).base).filter(Boolean))];
   return bases.length === 1 && familySteps.filter((s) => s.video_url).length > 1 ? shareUrl(bases[0]) : '';
 }
+
+/** 'videos' (video board) or 'checklist' for an athlete: their own setting, else automatic by age. */
+export function athleteView(athlete, settings = {}) {
+  if (athlete?.view_style === 'videos' || athlete?.view_style === 'checklist') return athlete.view_style;
+  const from = Number(settings.videoBoardAge ?? 13);
+  const age = parseFloat(athlete?.age);
+  return from > 0 && Number.isFinite(age) && age >= from ? 'videos' : 'checklist';
+}

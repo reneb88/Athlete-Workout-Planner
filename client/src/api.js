@@ -17,6 +17,7 @@ export const api = {
   logout: () => req('POST', '/api/auth/logout', {}),
   changePassword: (current, next) => req('POST', '/api/auth/change', { current, next }),
   state: () => req('GET', '/api/state'),
+  saveSettings: (s) => req('PUT', '/api/settings', s),
   createSkill: (s) => req('POST', '/api/skills', s),
   updateSkill: (id, s) => req('PUT', `/api/skills/${encodeURIComponent(id)}`, s),
   deleteSkill: (id) => req('DELETE', `/api/skills/${encodeURIComponent(id)}`),

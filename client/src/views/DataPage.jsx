@@ -45,6 +45,7 @@ export default function DataPage() {
             <p className="banner ok">Imported {result.skills} challenges, {result.athletes} athletes, {result.combos} combos, {result.assignments} assignments, {result.progress} progress marks, {result.templates} templates.</p>
           )}
         </section>
+        <VideoBoardSetting />
         <ChangePassword />
       </div>
     </div>
@@ -75,6 +76,22 @@ function ChangePassword() {
         <input type="password" placeholder="New password again" autoComplete="new-password" value={f.again} onChange={set('again')} aria-label="New password again" />
         <button className="btn" disabled={busy || !f.current || !f.next}>Change password</button>
       </form>
+    </section>
+  );
+}
+
+function VideoBoardSetting() {
+  const { settings, run } = useApp();
+  const [age, setAge] = useState(String(settings?.videoBoardAge ?? 13));
+  return (
+    <section className="card">
+      <h2>Video board</h2>
+      <p>Older athletes get a <b>video board</b> (videos, no checklist) instead of a checklist. You can still change it for any athlete on their page.</p>
+      <label className="opt">Athletes aged
+        <input type="number" inputMode="numeric" min="0" max="99" value={age} onChange={(e) => setAge(e.target.value)} style={{ width: 90 }} />
+        and up get the video board</label>
+      <p className="muted small">Set to 0 to give everyone the checklist unless you choose otherwise.</p>
+      <button className="btn" onClick={() => run(() => api.saveSettings({ videoBoardAge: Number(age) || 0 }), 'Saved')}>Save</button>
     </section>
   );
 }

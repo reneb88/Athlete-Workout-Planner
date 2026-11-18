@@ -20,7 +20,10 @@ export async function createApp({ dbFile, seedFile } = {}) {
   }
 
   const app = express();
+  // Hosting services (Render, Railway, Fly…) sit in front of the app and handle https.
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '5mb' }));
+  app.get('/api/health', (req, res) => res.json({ ok: true }));
 
   const h = (fn) => async (req, res) => {
     try {
@@ -46,6 +49,7 @@ export async function createApp({ dbFile, seedFile } = {}) {
   app.use('/api', (req, res, next) => (auth.isAuthed(req) ? next() : res.status(401).json({ error: 'Please sign in' })));
 
   app.get('/api/state', h(() => store.snapshot()));
+  app.put('/api/settings', h((req) => store.setSettings(req.body || {})));
 
   app.post('/api/skills', h((req) => store.createSkill(req.body)));
   app.put('/api/skills/:id', h((req) => store.updateSkill(req.params.id, req.body)));

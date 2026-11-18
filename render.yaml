@@ -1,0 +1,20 @@
+# Render.com blueprint for hosting Ropeworks Training Studio online.
+# Uses a persistent disk so the database survives restarts and deploys.
+services:
+  - type: web
+    name: ropeworks-training-studio
+    runtime: node
+    plan: starter
+    branch: claude/ropeworks-training-studio-8u6hki
+    buildCommand: npm ci && npm run build
+    startCommand: node --disable-warning=ExperimentalWarning server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22.22.0"
+      - key: DB_FILE
+        value: /var/data/ropeworks.db
+    disk:
+      name: ropeworks-data
+      mountPath: /var/data
+      sizeGB: 1

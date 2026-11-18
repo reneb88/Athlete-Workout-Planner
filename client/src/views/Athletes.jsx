@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { api } from '../api.js';
 import { Confirm, Empty, Field, Icon, Modal, SearchBox, Seg, useApp } from '../components.jsx';
 import { go } from '../App.jsx';
+import { athleteView } from '../util.js';
 
 export default function Athletes() {
-  const { athletes, assignmentCounts, run } = useApp();
+  const { athletes, assignmentCounts, run, settings } = useApp();
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -26,7 +27,7 @@ export default function Athletes() {
     <div className="card roster-row">
       <button className="roster-main" onClick={() => go('athlete', a.id)}>
         <span className={`avatar ${hasWork(a) ? '' : 'no-work'}`}>{a.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join('')}</span>
-        <span><b>{a.name}</b><small>{[a.age && `Age ${a.age}`, a.group_notes, hasWork(a) ? `${assignmentCounts[a.id]} challenges` : 'No workout yet'].filter(Boolean).join(' · ')}</small></span>
+        <span><b>{a.name}{athleteView(a, settings) === 'videos' && <span className="tag view-tag" style={{ marginLeft: 8 }}>Video board</span>}</b><small>{[a.age && `Age ${a.age}`, a.group_notes, hasWork(a) ? `${assignmentCounts[a.id]} challenges` : 'No workout yet'].filter(Boolean).join(' · ')}</small></span>
       </button>
       <div className="row-actions">
         <button className="btn sm" onClick={() => go('athlete', a.id)}><Icon name="user" size={18} /> Athlete view</button>
@@ -89,7 +90,7 @@ export default function Athletes() {
 }
 
 function AthleteEditor({ athlete, onClose }) {
-  const { run } = useApp();
+  const { run, settings } = useApp();
   const isNew = !athlete.id;
   const [f, setF] = useState({ name: '', age: '', group_notes: '', ...athlete });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -105,6 +106,13 @@ function AthleteEditor({ athlete, onClose }) {
         <Field label="Age"><input inputMode="numeric" value={f.age} onChange={set('age')} /></Field>
         <Field label="Group / notes" hint="e.g. Competitive team, Rec class, Camp"><input value={f.group_notes} onChange={set('group_notes')} /></Field>
       </div>
+      <Field label="Athlete page" hint={`Automatic: age ${settings?.videoBoardAge ?? 13} and up get the video board (change the age on the Data page).`}>
+        <select className="select block" value={f.view_style || ''} onChange={set('view_style')}>
+          <option value="">Automatic by age</option>
+          <option value="checklist">Checklist</option>
+          <option value="videos">Video board</option>
+        </select>
+      </Field>
     </Modal>
   );
 }

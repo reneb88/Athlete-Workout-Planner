@@ -225,3 +225,13 @@ test('filming punch list fields on skills and combos', async () => {
   assert.equal(b.getSkill('S110').film_assignee, 'Coach Sam');
   assert.equal(b.getCombo('C001').film_status, 'filmed');
 });
+
+test('video board settings and per-athlete view style', async () => {
+  const s = await fresh();
+  assert.equal(s.getSettings().videoBoardAge, 13);
+  assert.equal(s.setSettings({ videoBoardAge: 14 }).videoBoardAge, 14);
+  s.updateAthlete('A01', { view_style: 'videos' });
+  assert.equal(s.getAthlete('A01').view_style, 'videos');
+  s.updateAthlete('A01', { view_style: 'nonsense' });
+  assert.equal(s.getAthlete('A01').view_style, '');
+});

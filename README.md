@@ -44,13 +44,13 @@ The repository only includes the skill library and combos (`data/library-seed.xl
 
 The database is created on first start. To start over, delete `data/ropeworks.db`.
 
-### Hosting
+### Hosting online (Render)
 
-The included `Dockerfile` runs the app with the database on a `/data` volume:
+`render.yaml` sets up the app on [Render](https://render.com) with a persistent disk for the database (Starter plan, roughly $7/month plus about $0.25/month for 1 GB of disk). To do it:
 
-```bash
-docker build -t ropeworks .
-docker run -p 3001:3001 -v ropeworks-data:/data ropeworks
-```
+1. Create a Render account and connect your GitHub account.
+2. Choose **New → Blueprint**, pick this repository, and approve. Render builds the app and gives it an address like `https://ropeworks-training-studio.onrender.com`.
+3. Open that address and **create the coach password**.
+4. Move your data across: on your PC's copy, go to **Data → Download spreadsheet**, then on the online copy go to **Data → Import → Replace everything** with that file. Athletes, workouts, progress and templates all come across.
 
-Any host that supports Docker and a persistent disk will work (Render, Railway, Fly.io, a small VPS, and so on). The app is protected by the coach password. If you put it on the public internet, serve it over HTTPS.
+The app works on any device from then on. The `Dockerfile` also works on other hosts (Railway, Fly.io, a VPS); keep `/data` on a persistent volume.

@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS athletes (
   name TEXT NOT NULL,
   group_notes TEXT NOT NULL DEFAULT '',
   age TEXT NOT NULL DEFAULT '',
+  view_style TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS combos (
@@ -103,6 +104,9 @@ const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 /** Official required-element categories (competition rules), separate from the teaching categories. */
 export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
 /** Accepts an array or text like "multiples, power" and returns e.g. "Multiples, Power & Gymnastics". */
+/** How an athlete's page looks: '' = automatic by age, 'checklist', or 'videos' (video board). */
+export const viewStyle = (v) => (['checklist', 'videos'].includes(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');
+
 /** Filming punch list: '' (to film) | 'filmed' (needs link) | 'skip' (no video needed). Having a video = done. */
 export function normalizeFilm(v) {
   const t = String(v ?? '').toLowerCase();
@@ -132,7 +136,7 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
@@ -216,6 +220,7 @@ class Store {
       skills: d.prepare('SELECT * FROM skills ORDER BY sort_order, id').all().map(parseSkill),
       athletes: d.prepare('SELECT * FROM athletes ORDER BY sort_order, name').all(),
       combos: this.listCombos(),
+      settings: this.getSettings(),
       templates: d.prepare('SELECT * FROM templates ORDER BY name').all().map((t) => ({
         ...t,
         skill_ids: JSON.parse(t.skill_ids),
@@ -338,6 +343,22 @@ class Store {
     return n;
   }
 
+  // ---------- Settings ----------
+  getSettings() {
+    const rows = this.db.prepare("SELECT key, value FROM settings WHERE key LIKE 'app.%'").all();
+    const s = { videoBoardAge: 13 };
+    for (const r of rows) if (r.key === 'app.videoBoardAge') s.videoBoardAge = Number(r.value) || 0;
+    return s;
+  }
+
+  setSettings(input) {
+    if ('videoBoardAge' in input) {
+      const n = Math.max(0, Math.min(99, Number(input.videoBoardAge) || 0));
+      this.db.prepare("INSERT INTO settings (key, value) VALUES ('app.videoBoardAge', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(n));
+    }
+    return this.getSettings();
+  }
+
   // ---------- Athletes ----------
   getAthlete(id) { return this.db.prepare('SELECT * FROM athletes WHERE id = ?').get(id); }
 
@@ -346,8 +367,8 @@ class Store {
     if (!name) throw httpError(400, 'Athlete name is required');
     const id = str(input.id) || nextId(this.db, 'athletes', 'A', 2);
     const order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM athletes').get().m ?? 0) + 1;
-    this.db.prepare('INSERT INTO athletes (id, name, group_notes, age, sort_order) VALUES (?,?,?,?,?)')
-      .run(id, name, str(input.group_notes), str(input.age), input.sort_order ?? order);
+    this.db.prepare('INSERT INTO athletes (id, name, group_notes, age, view_style, sort_order) VALUES (?,?,?,?,?,?)')
+      .run(id, name, str(input.group_notes), str(input.age), viewStyle(input.view_style), input.sort_order ?? order);
     return this.getAthlete(id);
   }
 
@@ -356,8 +377,8 @@ class Store {
     if (!a) throw httpError(404, 'Athlete not found');
     const next = { ...a, ...input };
     if (!str(next.name)) throw httpError(400, 'Athlete name is required');
-    this.db.prepare('UPDATE athletes SET name = ?, group_notes = ?, age = ? WHERE id = ?')
-      .run(str(next.name), str(next.group_notes), str(next.age), id);
+    this.db.prepare('UPDATE athletes SET name = ?, group_notes = ?, age = ?, view_style = ? WHERE id = ?')
+      .run(str(next.name), str(next.group_notes), str(next.age), viewStyle(next.view_style), id);
     return this.getAthlete(id);
   }
 
@@ -588,11 +609,12 @@ class Store {
       }
       if ((data.skills || []).length) this.autoLinkTry();
       if ((data.skills || []).some((r) => 'sequence' in r || 'family' in r)) this.renumberFamilies();
-      const upAth = d.prepare(`INSERT INTO athletes (id, name, group_notes, age, sort_order) VALUES (?,?,?,?,?)
-        ON CONFLICT(id) DO UPDATE SET name=excluded.name, group_notes=excluded.group_notes, age=excluded.age, sort_order=excluded.sort_order`);
       (data.athletes || []).forEach((a, i) => {
         if (!str(a.id) || !str(a.name)) return;
-        upAth.run(str(a.id), str(a.name), str(a.group_notes), str(a.age), i + 1);
+        const vs = 'view_style' in a;
+        d.prepare(`INSERT INTO athletes (id, name, group_notes, age, sort_order${vs ? ', view_style' : ''}) VALUES (?,?,?,?,?${vs ? ',?' : ''})
+          ON CONFLICT(id) DO UPDATE SET name=excluded.name, group_notes=excluded.group_notes, age=excluded.age, sort_order=excluded.sort_order${vs ? ', view_style=excluded.view_style' : ''}`)
+          .run(str(a.id), str(a.name), str(a.group_notes), str(a.age), i + 1, ...(vs ? [viewStyle(a.view_style)] : []));
         counts.athletes++;
       });
       (data.combos || []).forEach((c, i) => {

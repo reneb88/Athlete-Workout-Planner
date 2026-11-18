@@ -24,6 +24,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
   const top = PAGE.headerH + 14;
   const bottom = H - PAGE.footer;
   let athlete;
+  let noBox = false; // video-board athletes get a video link sheet, not a checklist
   let col = 0;
   let y = top;
 
@@ -82,9 +83,9 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
     room(h);
     const x = x0();
     const base = y + 8;
-    box(x, base, done);
-    const n = text(label, x + 13, base, { maxW: colW - 14 - (url ? 30 : 0), color, style });
-    if (url) link('video', url, x + colW, base);
+    if (!noBox) box(x, base, done);
+    const n = text(label, noBox ? x : x + 13, base, { maxW: colW - 14 - (url ? 30 : 0), color, style });
+    if (url) link(noBox ? 'watch' : 'video', url, x + colW, base);
     let end = base + (n - 1) * LH;
     if (note) end += text(note, x + 13, end + 9, { size: FS.note, color: GREY, maxW: colW - 14 }) * 9;
     doc.setDrawColor(...LINE); doc.setLineWidth(0.4); doc.line(x, end + 3.5, x + colW, end + 3.5);
@@ -99,7 +100,8 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
   };
 
   sheets.forEach((sheet, idx) => {
-    const { skills, combos, done, comboByCheckpoint, all = skills } = sheet;
+    const { skills, combos, done, comboByCheckpoint, all = skills, videoBoard = false } = sheet;
+    noBox = videoBoard;
     athlete = sheet.athlete;
     if (idx > 0) doc.addPage();
     header(); col = 0; y = top;

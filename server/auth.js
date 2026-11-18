@@ -33,10 +33,12 @@ export function initAuth(db) {
   function checkNew(pw) {
     if (typeof pw !== 'string' || pw.length < MIN_LENGTH) throw fail(400, `Password must be at least ${MIN_LENGTH} characters`);
   }
+  // Over https (when hosted online) the cookie is marked Secure so it's never sent unencrypted.
+  const secure = (res) => (res.req?.secure ? '; Secure' : '');
   function newSession(res) {
     const token = crypto.randomBytes(32).toString('base64url');
     db.prepare('INSERT INTO sessions (token_hash) VALUES (?)').run(sha(token));
-    res.setHeader('Set-Cookie', `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}`);
+    res.setHeader('Set-Cookie', `${COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}${secure(res)}`);
   }
   function tokenFrom(req) {
     const m = (req.headers.cookie || '').match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`));
