@@ -1,0 +1,7 @@
+node_modules/
+dist/
+# Local database and your own workbook (may contain athlete names) — never commit
+data/*.db
+data/*.db-*
+data/seed.xlsx
+.DS_Store

@@ -1,0 +1,31 @@
+{
+  "name": "ropeworks-training-studio",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Ropeworks Training Studio — iPad-friendly jump rope training planner",
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"node --disable-warning=ExperimentalWarning --watch server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node --disable-warning=ExperimentalWarning server/index.js",
+    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "jszip": "^3.10.1"
+  },
+  "devDependencies": {
+    "@fontsource/exo": "^5.2.8",
+    "@vitejs/plugin-react": "^5.1.0",
+    "concurrently": "^9.2.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "vite": "^7.1.12"
+  }
+}
