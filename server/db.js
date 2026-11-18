@@ -461,8 +461,19 @@ class Store {
         if (data.templates) d.exec('DELETE FROM templates');
       }
       (data.skills || []).forEach((raw, i) => {
+        if (!str(raw.id)) return;
         const s = normalizeSkill({ prerequisites: [], sort_order: i + 1, ...raw });
-        if (!str(raw.id) || !s.name || !s.category) return;
+        if (!s.name || !s.category) {
+          // Partial row (e.g. only ID + Video URL): update just those columns of an existing skill.
+          const cur = this.getSkill(str(raw.id));
+          const part = normalizeSkill(raw);
+          delete part.name; delete part.category; delete part.sort_order;
+          const keys = Object.keys(part);
+          if (!cur || !keys.length) return;
+          d.prepare(`UPDATE skills SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...Object.values(part), cur.id);
+          counts.skills++;
+          return;
+        }
         // Existing rows: only overwrite columns the spreadsheet actually has, so e.g. videos or
         // "Leads to" links added in the app survive importing an older workbook without those columns.
         const upd = SKILL_FIELDS.filter((f) => f in raw || f === 'sort_order');

@@ -60,15 +60,19 @@ export async function parseWorkbook(buffer) {
   const sheets = await readXlsx(buffer);
   const sheet = (name) => sheets.find((w) => norm(w.name) === norm(name));
 
+  // Only columns that exist in the sheet are returned, so a partial sheet (e.g. just ID + Video URL)
+  // updates those columns and leaves everything else alone.
   const skills = readTable(sheet('Master Library'), 'ID', SKILL_ALIASES).map((s) => {
-    const prereqTokens = s.prerequisites ? s.prerequisites.split(/[,;\s]+/).filter(Boolean) : [];
-    const ids = prereqTokens.filter((t) => /^S\d+$/i.test(t)).map((t) => t.toUpperCase());
-    let teaching = s.teaching_notes || '';
-    if (s.prerequisites && ids.length !== prereqTokens.length) {
-      teaching = [teaching, `Prerequisite: ${s.prerequisites}`].filter(Boolean).join('\n');
+    const out = { ...s };
+    if ('prerequisites' in s) {
+      const tokens = s.prerequisites ? s.prerequisites.split(/[,;\s]+/).filter(Boolean) : [];
+      out.prerequisites = tokens.filter((t) => /^S\d+$/i.test(t)).map((t) => t.toUpperCase());
+      if (s.prerequisites && out.prerequisites.length !== tokens.length) {
+        out.teaching_notes = [s.teaching_notes || '', `Prerequisite: ${s.prerequisites}`].filter(Boolean).join('\n');
+      }
     }
-    return { ...s, prerequisites: ids, teaching_notes: teaching };
-  }).filter((s) => s.id && s.name && s.category);
+    return out;
+  }).filter((s) => s.id);
 
   const athletes = readTable(sheet('Athlete Roster'), 'Athlete name', {
     id: ['Athlete slot', 'Athlete ID', 'ID'],

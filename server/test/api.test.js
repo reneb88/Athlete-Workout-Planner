@@ -140,3 +140,23 @@ test('re-importing an exported workbook does not duplicate templates', async () 
   s.importData(await parseWorkbook(buf));
   assert.equal(s.snapshot().templates.filter((t) => t.name === 'Apples').length, 1);
 });
+
+test('a videos-only sheet (ID + Video URL) updates just the videos', async () => {
+  const s = await fresh();
+  s.updateSkill('S110', { teaching_notes: 'keep me' });
+  const ExcelJS = (await import('exceljs')).default;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Master Library');
+  ws.addRow(['ID', 'Video URL']);
+  ws.addRow(['S110', 'https://vimeo.com/120907342']);
+  ws.addRow(['S111', 'https://vimeo.com/120907342?t=25']);
+  ws.addRow(['S999', 'https://vimeo.com/1']); // unknown ID is ignored
+  const counts = s.importData(await parseWorkbook(Buffer.from(await wb.xlsx.writeBuffer())));
+  assert.equal(counts.skills, 2);
+  const t = s.getSkill('S110');
+  assert.equal(t.video_url, 'https://vimeo.com/120907342');
+  assert.equal(t.teaching_notes, 'keep me');
+  assert.equal(t.name, 'Toad');
+  assert.equal(s.getSkill('S111').video_url, 'https://vimeo.com/120907342?t=25');
+  assert.equal(s.snapshot().skills.length, 240);
+});
