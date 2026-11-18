@@ -3,27 +3,61 @@ import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
 import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
+import { SkillEditor } from './Library.jsx';
 
 const emptyWork = () => ({ skills: new Set(), manual: new Set(), dismissed: new Set() });
+
+// The Designer's work-in-progress is kept on this device, so leaving the page (to fix something on the
+// Sheet, say) or closing the browser doesn't lose it.
+const DRAFT_KEY = 'ropeworks.designerDraft';
+const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY)) || null; } catch { return null; } };
+const writeDraft = (d) => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* ignore */ } };
 
 export default function Designer({ initialAthlete }) {
   const app = useApp();
   const { skills, combos, athletes, templates, skillById, comboById, athleteById, assignmentCounts, run, toast } = app;
 
-  const [selected, setSelected] = useState(() => (initialAthlete && athleteById[initialAthlete] ? [initialAthlete] : []));
-  const [work, setWork] = useState(emptyWork);
-  const [loadedFrom, setLoadedFrom] = useState(null); // label of what's in the working set
-  const [dirty, setDirty] = useState(false);
-  const [q, setQ] = useState('');
-  const [cat, setCat] = useState('all');
+  // Restore the draft unless the coach came here to design a different athlete's workout (and nothing is unsaved).
+  const [draft] = useState(() => {
+    const d = readDraft();
+    if (!d) return null;
+    if (initialAthlete && !d.dirty && !(d.selected?.length === 1 && d.selected[0] === initialAthlete)) return null;
+    return d;
+  });
+  const keep = (ids, byId) => (ids || []).filter((id) => byId[id]);
+  const [selected, setSelected] = useState(() => (draft ? keep(draft.selected, athleteById)
+    : initialAthlete && athleteById[initialAthlete] ? [initialAthlete] : []));
+  const [work, setWork] = useState(() => (draft ? {
+    skills: new Set(keep(draft.skills, skillById)), manual: new Set(keep(draft.manual, comboById)), dismissed: new Set(keep(draft.dismissed, comboById)),
+  } : emptyWork()));
+  const [loadedFrom, setLoadedFrom] = useState(() => draft?.loadedFrom ?? null); // label of what's in the working set
+  const [dirty, setDirty] = useState(() => !!draft?.dirty);
+  const [q, setQ] = useState(() => draft?.q || '');
+  const [cat, setCat] = useState(() => draft?.cat || 'all');
   const [athQ, setAthQ] = useState('');
   const [modal, setModal] = useState(null);
-  const tree = useOpenSet();
-  const lastAuto = useRef(null);
-  const autoLoaded = useRef(false); // working set is just an athlete's saved workout, shown automatically
-  const [templateId, setTemplateId] = useState(null); // template currently loaded for editing
-  const [batch, setBatch] = useState(null); // athletes from the last group save, for one-by-one adjustments
-  const [adjusted, setAdjusted] = useState(() => new Set());
+  const [editing, setEditing] = useState(null); // skill being edited / added from here
+  const tree = useOpenSet(draft?.open || []);
+  const lastAuto = useRef(draft && draft.selected?.length === 1 ? draft.selected[0] : null);
+  const autoLoaded = useRef(!!draft?.autoLoaded); // working set is just an athlete's saved workout, shown automatically
+  const [templateId, setTemplateId] = useState(() => draft?.templateId ?? null); // template currently loaded for editing
+  const [batch, setBatch] = useState(() => draft?.batch ?? null); // athletes from the last group save, for one-by-one adjustments
+  const [adjusted, setAdjusted] = useState(() => new Set(draft?.adjusted || []));
+
+  // Keep the draft up to date.
+  useEffect(() => {
+    writeDraft({
+      selected, skills: [...work.skills], manual: [...work.manual], dismissed: [...work.dismissed],
+      loadedFrom, dirty, q, cat, open: [...tree.open], autoLoaded: autoLoaded.current,
+      templateId, batch, adjusted: [...adjusted],
+    });
+  }, [selected, work, loadedFrom, dirty, q, cat, tree.open, templateId, batch, adjusted]);
+
+  // A restored single-athlete view that had no unsaved changes is refreshed from the server.
+  useEffect(() => {
+    if (draft && !draft.dirty && selected.length === 1) { lastAuto.current = null; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ----- derived combo state -----
   const checkpointMap = useMemo(() => {
@@ -244,7 +278,10 @@ export default function Designer({ initialAthlete }) {
                         return (
                           <Disclosure key={f.key} level={2} open={isOpen(f.key)} onToggle={() => tree.toggle(f.key)}
                             header={<><Check checked={triState(fIds)} onChange={(on) => setSkills(fIds, on)} label={`Select whole ${f.name} progression`} />
-                              <h4>{f.name}</h4>{buildsOn[familyKey(f.skills[0])] && <span className="tag back">Builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</span>}<span className="count">{fIds.filter((id) => work.skills.has(id)).length}/{fIds.length}</span></>}>
+                              <h4>{f.name}</h4>{buildsOn[familyKey(f.skills[0])] && <span className="tag back">Builds on {buildsOn[familyKey(f.skills[0])].join(', ')}</span>}<span className="count">{fIds.filter((id) => work.skills.has(id)).length}/{fIds.length}</span>
+                              <button className="btn ghost sm push" title="Add a step to this family"
+                                onClick={(e) => { e.stopPropagation(); setEditing({ category: f.category, subcategory: f.subcategory, family: f.name }); }}>
+                                <Icon name="plus" size={16} /> Add step</button></>}>
                             <ol className="skill-list pick">
                               {f.skills.map((sk, i) => {
                                 const on = work.skills.has(sk.id);
@@ -259,6 +296,8 @@ export default function Designer({ initialAthlete }) {
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
                                       )}
                                     </div>
+                                    <button className="icon-btn sm" aria-label={`Edit ${sk.name}`} title="Edit this challenge"
+                                      onClick={(e) => { e.stopPropagation(); setEditing(sk); }}><Icon name="edit" size={18} /></button>
                                   </li>
                                 );
                               })}
@@ -417,6 +456,7 @@ export default function Designer({ initialAthlete }) {
         <SaveTemplateModal onClose={() => setModal(null)}
           onSave={async (name, description) => { const r = await run(() => api.createTemplate({ name, description, ...payload() }), `Template “${name}” saved`); setTemplateId(r.id); setLoadedFrom(`Template: ${name}`); setModal(null); }} />
       )}
+      {editing && <SkillEditor skill={editing} onClose={() => setEditing(null)} />}
       {modal === 'clear' && (
         <Confirm text="Clear every challenge and combo from the designer? Nothing is saved until you press Save." confirmLabel="Clear"
           onConfirm={() => { setWork(emptyWork()); setDirty(true); setLoadedFrom(null); setTemplateId(null); }} onClose={() => setModal(null)} />

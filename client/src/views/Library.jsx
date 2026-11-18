@@ -132,7 +132,7 @@ export default function Library() {
   );
 }
 
-function SkillEditor({ skill, onClose }) {
+export function SkillEditor({ skill, onClose }) {
   const { skills, combos, run } = useApp();
   const isNew = !skill.id;
   const [f, setF] = useState({
