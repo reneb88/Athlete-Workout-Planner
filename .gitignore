@@ -5,3 +5,4 @@ data/*.db
 data/*.db-*
 data/seed.xlsx
 .DS_Store
+screenshots/
