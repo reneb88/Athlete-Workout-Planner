@@ -60,7 +60,7 @@ export default function PrintCenter({ initial }) {
 
   async function pdf() {
     setBusy(true);
-    try { await exportPdfMany(sheets, { showNotes: prefs.showNotes }); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
+    try { await exportPdfMany(sheets, { showNotes: prefs.showNotes, poster: mode === 'posters' }); } catch (e) { toast(e.message, 'err'); } finally { setBusy(false); }
   }
 
   return (

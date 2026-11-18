@@ -388,16 +388,29 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .ps-combo, .ps-note { width: 100%; padding-left: 23px; font-size: .85em; }
 .ps-combo { color: #c2410c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ps-note { color: #444; font-style: normal; white-space: pre-wrap; }
-.print-sheet.poster .ps-cat { column-count: 2; column-gap: 28px; }
-.print-sheet.poster .ps-cat > h2 { column-span: all; margin-bottom: 4px; }
-.print-sheet.poster .ps-fam { margin-top: 10px; }
-@media (max-width: 640px) { .print-sheet.poster .ps-cat { column-count: 1; } }
+.print-sheet .ps-cat { column-count: 2; column-gap: 24px; }
+.print-sheet .ps-cat > h2 { column-span: all; margin-bottom: 4px; break-after: avoid; page-break-after: avoid; }
+.print-sheet .ps-fam { margin-top: 8px; }
+@media (max-width: 640px) { .print-sheet .ps-cat { column-count: 1; } }
 @media print {
   @page { size: letter; margin: 12mm; }
   body { background: #fff; font-size: 11pt; }
   .no-print, .topbar, .toasts, .modal-back { display: none !important; }
   .main { padding: 0; max-width: none; }
-  .print-sheet, .print-preview .print-sheet { display: block; box-shadow: none; padding: 0; max-width: none; min-height: 0; font-size: 11pt; border-radius: 0; }
+  .print-sheet, .print-preview .print-sheet { display: block; box-shadow: none; padding: 0; max-width: none; min-height: 0; font-size: 9pt; border-radius: 0; }
+  /* Compact, paper-saving checklist */
+  .ps-head { padding: 6px 10px; border-bottom-width: 3px; }
+  .ps-brand img { width: 24px; height: 24px; }
+  .ps-brand strong { font-size: 12pt; }
+  .ps-who h1 { font-size: 12pt; }
+  .ps-cat { margin-top: 8px; }
+  .ps-cat > h2 { font-size: 9.5pt; padding-bottom: 1px; }
+  .ps-fam { margin-top: 6px; }
+  .ps-fam h3 { font-size: 9pt; }
+  .ps-cat li { padding: 1.5px 0; gap: 6px; }
+  .ps-box { width: 10px; height: 10px; border-width: 1.2px; }
+  .ps-box.on::after { font-size: 10px; top: -3px; left: 0; }
+  .ps-combo, .ps-note { padding-left: 16px; }
   .print-preview { display: block; }
   .print-sheet + .print-sheet { break-before: page; }
 }
