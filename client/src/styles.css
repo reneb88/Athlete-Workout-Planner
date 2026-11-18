@@ -252,6 +252,8 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--line-2); }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field-label { font-size: 14px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.pick-new { display: flex; gap: 8px; align-items: center; }
+.pick-new input { flex: 1; }
 .field-hint { font-size: 13px; color: var(--ink-2); }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); column-gap: 14px; }
 .form-grid.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }

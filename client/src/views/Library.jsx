@@ -138,43 +138,64 @@ function SkillEditor({ skill, onClose }) {
     category: 'Manipulation', subcategory: '', family: '', name: '', target: '', level: '', sequence: '',
     prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', ...skill,
   });
-  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target ? e.target.value : e }));
-  const subs = [...new Set(skills.filter((s) => s.category === f.category).map((s) => s.subcategory))];
-  const fams = [...new Set(skills.filter((s) => s.category === f.category && (!f.subcategory || s.subcategory === f.subcategory)).map((s) => s.family))];
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
+  const subs = [...new Set(buildTree(skills.filter((s) => s.category === f.category)).flatMap((c) => c.subs.map((x) => x.name)))];
+  const fams = [...new Set(skills.filter((s) => s.category === f.category && s.subcategory === f.subcategory).map((s) => s.family))];
+  // Steps already in the chosen family, so a new line can go in the right place.
+  const famSteps = skills.filter((s) => s.category === f.category && s.subcategory === f.subcategory && s.family === f.family && s.id !== skill.id)
+    .sort((a, b) => a.sequence - b.sequence || a.id.localeCompare(b.id));
+  const [after, setAfter] = useState('end');
   const linked = combos.filter((c) => c.checkpoints.includes(skill.id));
 
   async function save() {
     const body = { ...f };
     if (body.sequence === '' || body.sequence === undefined) delete body.sequence;
     delete body.id; delete body.sort_order;
-    await run(() => (isNew ? api.createSkill(body) : api.updateSkill(skill.id, body)), isNew ? 'Challenge added' : 'Challenge saved');
+    const saved = await run(() => (isNew ? api.createSkill(body) : api.updateSkill(skill.id, body)), isNew ? `“${f.name}” added to ${f.family || 'the library'}` : 'Challenge saved');
+    if (isNew && after !== 'end' && famSteps.length) {
+      const ids = famSteps.map((x) => x.id);
+      ids.splice(after === 'start' ? 0 : ids.indexOf(after) + 1, 0, saved.id);
+      await run(() => api.reorderSkills(ids));
+    }
     onClose();
   }
 
   return (
     <Modal title={isNew ? 'Add challenge' : `Edit ${skill.id}`} onClose={onClose} wide
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" disabled={!f.name.trim() || !f.category} onClick={save}>Save</button></>}>
+        {(!f.name.trim() || !f.family.trim()) && <span className="muted small">{!f.family.trim() ? 'Choose a skill family' : 'Type the challenge name'} to save</span>}
+        <button className="btn primary" disabled={!f.name.trim() || !f.category || !f.family.trim()} onClick={save}>Save</button></>}>
       <div className="form-grid">
         <Field label="Master category">
-          <select className="select" value={f.category} onChange={set('category')}>
+          <select className="select" value={f.category} onChange={(e) => setF((x) => ({ ...x, category: e.target.value, subcategory: '', family: '' }))}>
             {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
         </Field>
         <Field label="Subcategory">
-          <input list="dl-subs" value={f.subcategory} onChange={set('subcategory')} placeholder="e.g. Leg Overs" />
-          <datalist id="dl-subs">{subs.map((s) => <option key={s} value={s} />)}</datalist>
+          <PickOrNew value={f.subcategory} options={subs} placeholder="New subcategory name" what="subcategory"
+            onChange={(v) => setF((x) => ({ ...x, subcategory: v, family: '' }))} />
         </Field>
         <Field label="Skill family">
-          <input list="dl-fams" value={f.family} onChange={set('family')} placeholder="e.g. Toad" />
-          <datalist id="dl-fams">{fams.map((s) => <option key={s} value={s} />)}</datalist>
+          <PickOrNew value={f.family} options={fams} placeholder="New family name" what="family" disabled={!f.subcategory}
+            onChange={(v) => { setF((x) => ({ ...x, family: v })); setAfter('end'); }} />
         </Field>
-        <Field label="Challenge / progression step"><input value={f.name} onChange={set('name')} autoFocus={isNew} /></Field>
+        <Field label="Challenge / progression step"><input value={f.name} onChange={set('name')} autoFocus={isNew && !!skill.family} placeholder="e.g. Toad double" /></Field>
+        {isNew && famSteps.length > 0 && (
+          <Field label="Where in the progression?">
+            <select className="select block" value={after} onChange={(e) => setAfter(e.target.value)}>
+              <option value="end">At the end (after step {famSteps.length})</option>
+              <option value="start">At the start (step 1)</option>
+              {famSteps.slice(0, -1).map((x, i) => <option key={x.id} value={x.id}>After step {i + 1}: {skillLabel(x)}</option>)}
+            </select>
+          </Field>
+        )}
         <Field label="Target"><input value={f.target} onChange={set('target')} placeholder="e.g. 10 jumps" /></Field>
         <Field label="Level"><input value={f.level} onChange={set('level')} placeholder="optional" /></Field>
-        <Field label="Sequence" hint={isNew ? 'Leave blank to add at the end of the family' : 'Or use the arrows in the library'}>
-          <input type="number" inputMode="numeric" value={f.sequence} onChange={set('sequence')} />
-        </Field>
+        {!isNew && (
+          <Field label="Sequence" hint="Or use the arrows in the library">
+            <input type="number" inputMode="numeric" value={f.sequence} onChange={set('sequence')} />
+          </Field>
+        )}
         <Field label="Related manipulation"><input value={f.related} onChange={set('related')} /></Field>
         <Field label="Video link" hint="YouTube, Vimeo or a direct .mp4 link">
           <input type="url" inputMode="url" value={f.video_url} onChange={set('video_url')} placeholder="https://" />
@@ -195,5 +216,27 @@ function SkillEditor({ skill, onClose }) {
         <p className="muted"><Icon name="bolt" size={16} /> Readiness checkpoint for: {linked.map((c) => c.name).join(', ')}</p>
       )}
     </Modal>
+  );
+}
+
+/** Pick an existing name from a list, or choose "New…" and type one. */
+function PickOrNew({ value, options, onChange, placeholder, what, disabled }) {
+  const [typing, setTyping] = useState(() => !!value && !options.includes(value));
+  if (typing || (value && !options.includes(value))) {
+    return (
+      <div className="pick-new">
+        <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoFocus={typing} />
+        {options.length > 0 && <button type="button" className="btn ghost sm" onClick={() => { setTyping(false); onChange(''); }}>Choose from list</button>}
+      </div>
+    );
+  }
+  return (
+    <select className="select block" value={value} disabled={disabled} onChange={(e) => {
+      if (e.target.value === '__new') { setTyping(true); onChange(''); } else onChange(e.target.value);
+    }}>
+      <option value="">{disabled ? 'Choose a subcategory first' : `Choose a ${what}…`}</option>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      <option value="__new">＋ New {what}…</option>
+    </select>
   );
 }
