@@ -323,6 +323,8 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .sheet .rownum { position: sticky; left: 0; z-index: 1; width: 44px; text-align: center; color: var(--ink-2); font-size: 12px; font-weight: 700; background: var(--line-2) !important; border-left: 4px solid var(--cat); }
 .sheet th.rownum { z-index: 3; background: var(--navy) !important; color: #fff; border-left-color: var(--navy); }
 .sheet .act { width: 48px; text-align: center; }
+.sheet-actions { display: flex; gap: 0; padding: 0 4px; }
+.sheet tr.group-start td { border-top: 3px solid color-mix(in srgb, var(--cat) 45%, white); }
 .add-below { margin-top: 10px; }
 
 /* ---------- Print centre ---------- */

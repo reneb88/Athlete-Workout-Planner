@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Confirm, Icon, SearchBox, Seg, useApp } from '../components.jsx';
-import { CATEGORIES, matchesSearch } from '../util.js';
+import { CATEGORIES, buildTree, matchesSearch } from '../util.js';
 
 /*
  * Spreadsheet-style editor. Every cell is editable in place; a change is saved when you
@@ -14,7 +14,7 @@ const SKILL_COLS = [
   { key: 'subcategory', label: 'Subcategory', w: 250 },
   { key: 'family', label: 'Skill family', w: 170 },
   { key: 'name', label: 'Challenge / progression', w: 250 },
-  { key: 'sequence', label: 'Step', w: 70, num: true },
+  { key: 'sequence', label: 'Step', w: 70, num: true, step: true },
   { key: 'target', label: 'Target', w: 120 },
   { key: 'level', label: 'Level', w: 80 },
   { key: 'prerequisites', label: 'Prerequisites (IDs)', w: 160, list: true },
@@ -47,12 +47,27 @@ export default function Spreadsheet() {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [del, setDel] = useState(null);
+  const [order, setOrder] = useState('progression');
   const scroller = useRef(null);
+
+  // Every progression (category › subcategory › family) in the order the app shows it,
+  // built from the full library so step numbers are always the real position.
+  const groups = useMemo(() => {
+    const byId = {};
+    const flat = [];
+    for (const c of buildTree(skills)) for (const sub of c.subs) for (const f of sub.families) {
+      const ids = f.skills.map((x) => x.id);
+      f.skills.forEach((x, i) => { byId[x.id] = { ids, pos: i + 1, first: i === 0 }; flat.push(x); });
+    }
+    return { byId, flat };
+  }, [skills]);
 
   const cfg = {
     skills: {
       cols: SKILL_COLS,
-      rows: skills.filter((s) => (cat === 'all' || s.category === cat) && matchesSearch(s, q)),
+      rows: (order === 'progression' ? groups.flat : skills)
+        .filter((s) => (cat === 'all' || s.category === cat) && matchesSearch(s, q))
+        .map((s) => ({ ...s, sequence: groups.byId[s.id]?.pos ?? s.sequence })),
       save: (id, patch) => api.updateSkill(id, patch),
       add: () => api.createSkill({ category: cat === 'all' ? 'Manipulation' : cat, subcategory: '', family: '', name: 'New challenge' }),
       remove: (id) => api.deleteSkill(id),
@@ -78,9 +93,37 @@ export default function Spreadsheet() {
 
   const total = { skills: skills.length, athletes: athletes.length, combos: combos.length }[tab];
 
+  // Put a challenge at step n of its progression; the others shift to make room and are renumbered 1, 2, 3…
+  async function moveTo(row, n) {
+    const ids = groups.byId[row.id].ids.filter((id) => id !== row.id);
+    const at = Math.max(0, Math.min(ids.length, Math.round(n) - 1));
+    ids.splice(at, 0, row.id);
+    await run(() => api.reorderSkills(ids), `${row.name} is now step ${at + 1}`).catch(() => {});
+  }
+  const nudge = (row, dir) => moveTo(row, groups.byId[row.id].pos + dir);
+
+  // Insert a new blank step directly below this one, in the same progression.
+  async function insertBelow(row) {
+    const created = await run(() => api.createSkill({ category: row.category, subcategory: row.subcategory, family: row.family, name: 'New step' }));
+    const ids = groups.byId[row.id].ids.filter((id) => id !== created.id);
+    ids.splice(ids.indexOf(row.id) + 1, 0, created.id);
+    await run(() => api.reorderSkills(ids), `New step added after “${row.name}” — type its name`);
+    setQ('');
+    setTimeout(() => {
+      const el = document.querySelector(`input[aria-label="Challenge / progression for ${created.id}"]`);
+      if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.select(); }
+    }, 150);
+  }
+
   async function commit(row, col, raw, el) {
     const before = display(col, row[col.key]);
     if (raw === String(before)) return;
+    if (col.step) {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 1) { if (el) el.value = before; return; }
+      await moveTo(row, n);
+      return;
+    }
     let value = raw;
     if (col.list) value = raw.split(/[,;\s]+/).map((t) => t.trim().toUpperCase()).filter(Boolean);
     if (col.num) value = Number(raw) || 0;
@@ -105,7 +148,7 @@ export default function Spreadsheet() {
       <div className="page-head">
         <div>
           <h1>Spreadsheet</h1>
-          <p className="muted">Edit any cell, it saves when you move to another cell. Changes show up everywhere in the app straight away.</p>
+          <p className="muted">Edit any cell, it saves when you move to another cell. To fix the order, type a new <b>Step</b> number or use the arrows. <b>+</b> inserts a new step right below a row.</p>
         </div>
         <button className="btn primary" onClick={addRow}><Icon name="plus" /> Add {cfg.noun}</button>
       </div>
@@ -122,6 +165,12 @@ export default function Spreadsheet() {
             {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
           </select>
         )}
+        {tab === 'skills' && (
+          <select className="select" value={order} onChange={(e) => setOrder(e.target.value)} aria-label="Row order">
+            <option value="progression">Progression order</option>
+            <option value="original">Original row order</option>
+          </select>
+        )}
         {cfg.rows.length !== total && <span className="count">{cfg.rows.length} of {total} rows</span>}
       </div>
 
@@ -131,12 +180,12 @@ export default function Spreadsheet() {
             <tr>
               <th className="rownum">#</th>
               {cfg.cols.map((c) => <th key={c.key} style={{ minWidth: c.w }}>{c.label}</th>)}
-              <th className="act" aria-label="Delete" />
+              <th className="act" aria-label="Row actions" />
             </tr>
           </thead>
           <tbody>
             {cfg.rows.map((row, i) => (
-              <tr key={row.id} className={row.category ? `cat-${row.category.toLowerCase()}` : ''}>
+              <tr key={row.id} className={`${row.category ? `cat-${row.category.toLowerCase()}` : ''} ${tab === 'skills' && order === 'progression' && groups.byId[row.id]?.first ? 'group-start' : ''}`}>
                 <td className="rownum">{i + 1}</td>
                 {cfg.cols.map((col) => {
                   const v = display(col, row[col.key]);
@@ -165,7 +214,14 @@ export default function Spreadsheet() {
                   );
                 })}
                 <td className="act">
-                  <button className="icon-btn sm danger" aria-label={`Delete ${row.id}`} onClick={() => setDel(row)}><Icon name="trash" size={18} /></button>
+                  <div className="sheet-actions">
+                    {tab === 'skills' && <>
+                      <button className="icon-btn sm" aria-label={`Move ${row.id} up`} disabled={groups.byId[row.id]?.pos === 1} onClick={() => nudge(row, -1)}><Icon name="up" size={18} /></button>
+                      <button className="icon-btn sm" aria-label={`Move ${row.id} down`} disabled={groups.byId[row.id]?.pos === groups.byId[row.id]?.ids.length} onClick={() => nudge(row, 1)}><Icon name="down" size={18} /></button>
+                      <button className="icon-btn sm" aria-label={`Insert a step below ${row.id}`} title="Insert a new step below" onClick={() => insertBelow(row)}><Icon name="plus" size={18} /></button>
+                    </>}
+                    <button className="icon-btn sm danger" aria-label={`Delete ${row.id}`} onClick={() => setDel(row)}><Icon name="trash" size={18} /></button>
+                  </div>
                 </td>
               </tr>
             ))}
