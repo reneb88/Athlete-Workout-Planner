@@ -214,7 +214,7 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .workout-card { position: sticky; top: 84px; max-height: calc(100vh - 100px); overflow-y: auto; }
 .unsaved { color: var(--orange); }
 @media (max-width: 1000px) {
-  .designer-cols { grid-template-columns: 1fr; }
+  .designer-cols { grid-template-columns: minmax(0, 1fr); }
   .workout-card { position: static; max-height: none; order: -1; }
 }
 .combo-panel { background: var(--orange-soft); border-radius: 14px; padding: 12px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -308,7 +308,7 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 @keyframes pop { from { transform: translateY(10px); opacity: 0; } }
 
 /* ---------- Combo library ---------- */
-.combo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.combo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
 .combo-card { display: flex; flex-direction: column; gap: 8px; border-top: 5px solid var(--orange); }
 .combo-card-head { display: flex; justify-content: space-between; }
 .checkpoints small { font-size: 12px; text-transform: uppercase; font-weight: 700; color: var(--ink-2); letter-spacing: .05em; }
@@ -361,7 +361,7 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .combos-section .check-item { --cat: var(--orange); }
 
 /* ---------- Data ---------- */
-.data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; }
 .data-grid .card { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 
 /* ---------- Spreadsheet ---------- */
@@ -411,7 +411,7 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .print-sheet.video-board .ps-box { display: none; }
 /* ---------- Video board ---------- */
 .auto-note { color: #b5c2d9 !important; align-self: center; }
-.vb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
+.vb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); gap: 14px; }
 .vb-card { border-top: 5px solid var(--cat); }
 .vb-combos { --cat: var(--orange); }
 .vb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
@@ -488,4 +488,30 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
   .film-print table { width: 100%; border-collapse: collapse; margin-top: 6px; }
   .film-print th, .film-print td { border-bottom: 1px solid #ccc; padding: 3px 5px; text-align: left; vertical-align: top; }
   .film-print th { background: #eee; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ---------- Phones ---------- */
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; row-gap: 4px; padding-top: calc(env(safe-area-inset-top) + 6px); padding-bottom: 6px; }
+  .brand-mark img { width: 34px; height: 34px; }
+  .tabs { margin-left: 0; width: 100%; flex-wrap: wrap; overflow: visible; gap: 2px; }
+  .tabs a { min-height: 38px; padding: 0 9px; font-size: 14px; }
+  .signout { min-height: 36px; margin-left: auto; font-size: 14px; }
+  .main { padding: 14px 12px calc(env(safe-area-inset-bottom) + 50px); }
+  h1 { font-size: 27px; }
+  .card { padding: 13px; }
+  .toolbar.sticky { position: static; }
+  .search { min-width: 0; flex-basis: 100%; }
+  .seg button { padding: 0 10px; font-size: 15px; }
+  .disc.lvl1 > .disc-body { padding-left: 6px; }
+  .disc.lvl0 > .disc-body { padding: 0 6px 8px; }
+  .athlete-grid { grid-template-columns: 1fr 1fr; }
+  .check-item { gap: 10px; }
+  .combo-callout { margin-left: 10px; }
+  .athlete-hero { padding: 14px 16px 6px; border-radius: 18px; }
+  .ring { width: 84px; height: 84px; }
+  .ring span { font-size: 21px; }
+  .vb-list li { gap: 10px; }
+  .modal-back { padding: 12px 8px; }
+  .modal-body, .modal-head, .modal-foot { padding-left: 14px; padding-right: 14px; }
 }
