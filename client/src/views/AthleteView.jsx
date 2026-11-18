@@ -150,7 +150,12 @@ export default function AthleteView({ athleteId }) {
                           <Check size="lg" checked={on} onChange={(v) => toggle('combo', c.id, v)} label={c.name} tone="orange" />
                           <div className="grow">
                             <div className="ci-name">{c.name}</div>
-                            {c.checkpoints.length > 0 && <div className="ci-notes">Ready after: {c.checkpoints.map((id) => skillById[id] ? `${skillById[id].family} – ${skillLabel(skillById[id])}` : id).join('; ')}</div>}
+                            {(c.checkpoints.length > 0 || c.after_combos?.length > 0) && <div className="ci-notes">Ready after: {[
+                              ...c.checkpoints.map((id) => skillById[id] ? `${skillById[id].family} – ${skillLabel(skillById[id])}` : id),
+                              ...(c.after_combos || []).map((id) => comboById[id]?.name || id)].join('; ')}</div>}
+                            {assignedCombos.filter((n) => n.after_combos?.includes(c.id)).map((n) => (
+                              <div key={n.id} className="ci-next combo-next"><Icon name="bolt" size={14} /> Can you do this? Try this {n.kind}: {n.name}</div>
+                            ))}
                             {c.notes && <div className="ci-notes">{c.notes}</div>}
                           </div>
                           {c.video_url && <button className="icon-btn accent lg" aria-label="Watch demo" onClick={(e) => { e.stopPropagation(); setVideo({ url: c.video_url, title: c.name }); }}><Icon name="play" /></button>}

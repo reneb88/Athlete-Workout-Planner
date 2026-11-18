@@ -87,12 +87,14 @@ export async function parseWorkbook(buffer) {
     name: ['Combo name', 'Name'],
     kind: ['Type', 'Kind'],
     checkpoints: ['Checkpoint skill ID', 'Checkpoint skill IDs', 'Checkpoints'],
+    after_combos: ['Ready after combo IDs', 'Ready after combos'],
     video_url: ['Video URL', 'Video'],
     notes: ['Notes / choreography', 'Notes'],
   }).filter((c) => c.id && c.name).map((c) => ({
     ...c,
     kind: (c.kind ? norm(c.kind) === 'routine' : /routine/i.test(c.name)) ? 'routine' : 'combo',
     checkpoints: (c.checkpoints || '').split(/[,;\s]+/).filter(Boolean).map((t) => t.toUpperCase()),
+    ...('after_combos' in c ? { after_combos: (c.after_combos || '').split(/[,;\s]+/).filter(Boolean).map((t) => t.toUpperCase()) } : {}),
   }));
 
   const assignRows = readTable(sheet('Assignments'), 'Athlete ID', {
@@ -184,6 +186,7 @@ export async function buildWorkbook(store) {
     { header: 'Type', key: 'kind', width: 10 },
     { header: 'Checkpoint skill ID', key: 'checkpoints', width: 20 },
     { header: 'Ready after (linked skill)', key: 'ready', width: 40 },
+    { header: 'Ready after combo IDs', key: 'after_combos', width: 20 },
     { header: 'Video URL', key: 'video_url', width: 30 },
     { header: 'Notes / choreography', key: 'notes', width: 40 },
   ];
@@ -191,6 +194,7 @@ export async function buildWorkbook(store) {
     cl.addRow({
       ...c,
       checkpoints: c.checkpoints.join(', '),
+      after_combos: (c.after_combos || []).join(', '),
       ready: c.checkpoints.map((id) => skillName[id] ? `${skillName[id].family}: ${skillName[id].name}${skillName[id].target ? ' – ' + skillName[id].target : ''}` : id).join('; '),
     });
   }

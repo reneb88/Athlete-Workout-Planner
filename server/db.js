@@ -42,6 +42,11 @@ CREATE TABLE IF NOT EXISTS combos (
   notes TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS combo_after (
+  combo_id TEXT NOT NULL REFERENCES combos(id) ON DELETE CASCADE,
+  after_combo_id TEXT NOT NULL REFERENCES combos(id) ON DELETE CASCADE,
+  PRIMARY KEY (combo_id, after_combo_id)
+);
 CREATE TABLE IF NOT EXISTS combo_checkpoints (
   combo_id TEXT NOT NULL REFERENCES combos(id) ON DELETE CASCADE,
   skill_id TEXT NOT NULL REFERENCES skills(id) ON DELETE CASCADE,
@@ -340,9 +345,12 @@ class Store {
   // ---------- Combos ----------
   listCombos() {
     const cps = this.db.prepare('SELECT * FROM combo_checkpoints').all();
+    const after = this.db.prepare('SELECT * FROM combo_after').all();
     return this.db.prepare('SELECT * FROM combos ORDER BY sort_order, id').all().map((c) => ({
       ...c,
       checkpoints: cps.filter((x) => x.combo_id === c.id).map((x) => x.skill_id),
+      // other combos/routines this one is ready after
+      after_combos: after.filter((x) => x.combo_id === c.id).map((x) => x.after_combo_id),
     }));
   }
 
@@ -356,6 +364,14 @@ class Store {
     }
   }
 
+  setAfterCombos(comboId, ids) {
+    this.db.prepare('DELETE FROM combo_after WHERE combo_id = ?').run(comboId);
+    const st = this.db.prepare('INSERT OR IGNORE INTO combo_after (combo_id, after_combo_id) VALUES (?, ?)');
+    for (const cid of ids || []) {
+      if (cid !== comboId && this.db.prepare('SELECT 1 FROM combos WHERE id = ?').get(cid)) st.run(comboId, cid);
+    }
+  }
+
   createCombo(input) {
     const name = str(input.name);
     if (!name) throw httpError(400, 'Combo name is required');
@@ -366,6 +382,7 @@ class Store {
       this.db.prepare('INSERT INTO combos (id, name, kind, video_url, notes, sort_order) VALUES (?,?,?,?,?,?)')
         .run(id, name, input.kind === 'routine' ? 'routine' : 'combo', str(input.video_url), str(input.notes), order);
       this.setCheckpoints(id, input.checkpoints);
+      this.setAfterCombos(id, input.after_combos);
     });
     return this.getCombo(id);
   }
@@ -379,6 +396,7 @@ class Store {
       this.db.prepare('UPDATE combos SET name = ?, kind = ?, video_url = ?, notes = ? WHERE id = ?')
         .run(str(next.name), next.kind === 'routine' ? 'routine' : 'combo', str(next.video_url), str(next.notes), id);
       if ('checkpoints' in input) this.setCheckpoints(id, input.checkpoints);
+      if ('after_combos' in input) this.setAfterCombos(id, input.after_combos);
     });
     return this.getCombo(id);
   }
@@ -429,8 +447,19 @@ class Store {
       for (const c of combos) dismissed.delete(c);
       // auto-suggest
       const cps = d.prepare('SELECT combo_id, skill_id FROM combo_checkpoints').all();
+      const after = d.prepare('SELECT combo_id, after_combo_id FROM combo_after').all();
       const suggested = new Set(cps.filter((x) => skills.has(x.skill_id)).map((x) => x.combo_id));
       for (const c of suggested) if (!dismissed.has(c)) combos.add(c);
+      // Combos/routines ready after another combo the athlete has (repeat for chains: combo → bigger combo → routine).
+      for (let changed = true; changed;) {
+        changed = false;
+        for (const x of after) {
+          if (combos.has(x.after_combo_id) && !suggested.has(x.combo_id)) {
+            suggested.add(x.combo_id);
+            if (!dismissed.has(x.combo_id) && !combos.has(x.combo_id)) { combos.add(x.combo_id); changed = true; }
+          }
+        }
+      }
 
       d.prepare('DELETE FROM skill_assignments WHERE athlete_id = ?').run(athleteId);
       d.prepare('DELETE FROM combo_assignments WHERE athlete_id = ?').run(athleteId);
@@ -503,7 +532,7 @@ class Store {
     const counts = { skills: 0, athletes: 0, combos: 0, assignments: 0, progress: 0, templates: 0 };
     tx(d, () => {
       if (replace) {
-        d.exec('DELETE FROM progress; DELETE FROM combo_dismissals; DELETE FROM combo_assignments; DELETE FROM skill_assignments; DELETE FROM combo_checkpoints; DELETE FROM combos; DELETE FROM athletes; DELETE FROM skills;');
+        d.exec('DELETE FROM progress; DELETE FROM combo_dismissals; DELETE FROM combo_assignments; DELETE FROM skill_assignments; DELETE FROM combo_checkpoints; DELETE FROM combo_after; DELETE FROM combos; DELETE FROM athletes; DELETE FROM skills;');
         if (data.templates) d.exec('DELETE FROM templates');
       }
       (data.skills || []).forEach((raw, i) => {
@@ -548,9 +577,15 @@ class Store {
       (data.combos || []).forEach((c, i) => {
         if (!str(c.id) || !str(c.name)) return;
         upCombo.run(str(c.id), str(c.name), c.kind === 'routine' ? 'routine' : 'combo', str(c.video_url), str(c.notes), i + 1);
-        this.setCheckpoints(str(c.id), c.checkpoints || []);
+        this.setCheckpoints(str(c.id), (c.checkpoints || []).filter((t) => !/^C\d+$/i.test(t)));
         counts.combos++;
       });
+      // second pass: combos ready after other combos (IDs may refer to combos imported just now)
+      for (const c of data.combos || []) {
+        if (!str(c.id)) continue;
+        const ids = [...(c.after_combos || []), ...(c.checkpoints || []).filter((t) => /^C\d+$/i.test(t))].map((t) => String(t).toUpperCase());
+        if ('after_combos' in c || ids.length) this.setAfterCombos(str(c.id), ids);
+      }
       const has = (t, id) => !!d.prepare(`SELECT 1 FROM ${t} WHERE id = ?`).get(id);
       for (const a of data.skillAssignments || []) {
         if (has('athletes', a.athlete_id) && has('skills', a.skill_id)) {

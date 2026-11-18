@@ -5,7 +5,7 @@ import SkillPicker from '../SkillPicker.jsx';
 import { skillLabel } from '../util.js';
 
 export default function Combos() {
-  const { combos, skillById, run } = useApp();
+  const { combos, skillById, comboById, run } = useApp();
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [video, setVideo] = useState(null);
@@ -37,11 +37,14 @@ export default function Combos() {
               <span className="pill">{c.id}</span>
             </div>
             <h3>{c.name}</h3>
-            {c.checkpoints.length ? (
+            {c.checkpoints.length || c.after_combos?.length ? (
               <div className="checkpoints">
                 <small>Suggested after</small>
                 {c.checkpoints.map((id) => (
                   <div key={id} className="checkpoint"><span className="pill">{id}</span> {skillById[id] ? `${skillById[id].family}: ${skillLabel(skillById[id])}` : 'missing skill'}</div>
+                ))}
+                {(c.after_combos || []).map((id) => (
+                  <div key={id} className="checkpoint"><span className="pill">{id}</span> <Icon name="bolt" size={14} /> {comboById[id] ? `${comboById[id].name} (${comboById[id].kind})` : 'missing combo'}</div>
                 ))}
               </div>
             ) : <p className="muted small">Standalone — assign directly in the Workout Designer.</p>}
@@ -64,10 +67,11 @@ export default function Combos() {
 function ComboEditor({ combo, onClose }) {
   const { run } = useApp();
   const isNew = !combo.id;
-  const [f, setF] = useState({ name: '', kind: 'combo', checkpoints: [], video_url: '', notes: '', ...combo });
+  const { combos } = useApp();
+  const [f, setF] = useState({ name: '', kind: 'combo', checkpoints: [], after_combos: [], video_url: '', notes: '', ...combo });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   async function save() {
-    const body = { name: f.name, kind: f.kind, checkpoints: f.checkpoints, video_url: f.video_url, notes: f.notes };
+    const body = { name: f.name, kind: f.kind, checkpoints: f.checkpoints, after_combos: f.after_combos, video_url: f.video_url, notes: f.notes };
     await run(() => (isNew ? api.createCombo(body) : api.updateCombo(combo.id, body)), isNew ? 'Combo created' : 'Combo saved');
     onClose();
   }
@@ -83,6 +87,23 @@ function ComboEditor({ combo, onClose }) {
       </div>
       <Field group label="Readiness checkpoints (optional)" hint="When any of these challenges is assigned, the athlete sees “Can you do this? Try this combo!”">
         <SkillPicker value={f.checkpoints} onChange={set('checkpoints')} placeholder="Search for a checkpoint skill…" />
+      </Field>
+      <Field group label="Ready after these combos & routines (optional)" hint="When an athlete has any of these, this one is suggested next — e.g. a routine built from smaller combos.">
+        <div className="chips">
+          {f.after_combos.map((id) => {
+            const c = combos.find((x) => x.id === id);
+            return (
+              <span key={id} className="chip"><Icon name="bolt" size={14} /> {c ? c.name : id} {c && <small className="muted">({c.kind})</small>}
+                <button type="button" aria-label={`Remove ${c?.name || id}`} onClick={() => setF((x) => ({ ...x, after_combos: x.after_combos.filter((y) => y !== id) }))}><Icon name="x" size={16} /></button>
+              </span>
+            );
+          })}
+        </div>
+        <select className="select block" value="" aria-label="Add a combo or routine this comes after"
+          onChange={(e) => e.target.value && setF((x) => ({ ...x, after_combos: [...x.after_combos, e.target.value] }))}>
+          <option value="">+ Add a combo or routine…</option>
+          {combos.filter((c) => c.id !== combo.id && !f.after_combos.includes(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
+        </select>
       </Field>
       <Field label="Notes / choreography"><textarea rows={5} value={f.notes} onChange={set('notes')} /></Field>
     </Modal>

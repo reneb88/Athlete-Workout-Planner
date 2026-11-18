@@ -67,13 +67,21 @@ export default function Designer({ initialAthlete }) {
     return m;
   }, [combos]);
   const suggested = useMemo(() => {
-    const out = new Map(); // comboId -> [skill ids that triggered it]
-    for (const sid of work.skills) for (const c of checkpointMap[sid] || []) {
-      if (!out.has(c.id)) out.set(c.id, []);
-      out.get(c.id).push(sid);
+    const out = new Map(); // comboId -> [labels of the skills / combos that triggered it]
+    const add = (cid, label) => { if (!out.has(cid)) out.set(cid, []); if (!out.get(cid).includes(label)) out.get(cid).push(label); };
+    for (const sid of work.skills) for (const c of checkpointMap[sid] || []) add(c.id, `${skillById[sid]?.family} – ${skillLabel(skillById[sid])}`);
+    // combos ready after other combos the athlete will have (chains)
+    const has = (id) => work.manual.has(id) || (out.has(id) && !work.dismissed.has(id));
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const c of combos) {
+        for (const a of c.after_combos || []) {
+          if (has(a) && !out.has(c.id)) { add(c.id, comboById[a]?.name || a); changed = true; }
+        }
+      }
     }
     return out;
-  }, [work.skills, checkpointMap]);
+  }, [work.skills, work.manual, work.dismissed, checkpointMap, combos, skillById, comboById]);
   const activeCombos = useMemo(() => {
     const s = new Set(work.manual);
     for (const id of suggested.keys()) if (!work.dismissed.has(id)) s.add(id);
@@ -394,9 +402,9 @@ export default function Designer({ initialAthlete }) {
               return (
                 <div key={cid} className={`combo-suggest ${kept ? '' : 'off'}`}>
                   <div>
-                    <div className="cs-title">Can you do this? Try this combo!</div>
+                    <div className="cs-title">Can you do this? Try this {c.kind}!</div>
                     <div className="cs-name">{c.name}</div>
-                    <div className="cs-after">After: {suggested.get(cid).map((id) => `${skillById[id]?.family} – ${skillLabel(skillById[id])}`).join('; ')}</div>
+                    <div className="cs-after">After: {suggested.get(cid).join('; ')}</div>
                   </div>
                   {kept
                     ? <button className="btn sm ghost" onClick={() => removeCombo(cid)}>Remove</button>

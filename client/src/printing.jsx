@@ -50,7 +50,7 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
                     {sk.video_url && <a className="ps-link" href={shareUrl(sk.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
                     {showNotes && sk.teaching_notes && <em className="ps-note">{sk.teaching_notes}</em>}
                     {sk.leads_to && <em className="ps-note">→ Next skill: {familyName(sk.leads_to)}</em>}
-                    {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this combo: {cb.name}</em>)}
+                    {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this {cb.kind}: {cb.name}{cb.video_url && <a className="ps-link" href={shareUrl(cb.video_url)} target="_blank" rel="noreferrer">▶ video</a>}</em>)}
                   </li>
                 ))}
               </ul>
@@ -63,7 +63,10 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
           <h2>Combos & routines</h2>
           <ul>
             {combos.map((c) => (
-              <li key={c.id}><span className={`ps-box ${done.has(`combo:${c.id}`) ? 'on' : ''}`} /><span>{c.name} <small>({c.kind}{c.checkpoints.length ? ` · after ${c.checkpoints.map((id) => skillById[id]?.name || id).join(', ')}` : ''})</small></span>
+              <li key={c.id}><span className={`ps-box ${done.has(`combo:${c.id}`) ? 'on' : ''}`} /><span>{c.name} <small>({c.kind}{c.checkpoints.length || c.after_combos?.length ? ` · after ${[
+                ...c.checkpoints.map((id) => skillById[id]?.name || id),
+                ...(c.after_combos || []).map((id) => combos.find((x) => x.id === id)?.name || id)].join(', ')}` : ''})</small></span>
+                {c.video_url && <a className="ps-link" href={shareUrl(c.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
                 {showNotes && c.notes && <em className="ps-note">{c.notes}</em>}</li>
             ))}
           </ul>

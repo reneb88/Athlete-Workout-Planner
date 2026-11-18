@@ -133,8 +133,11 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
     }
     if (combos.length) {
       catBand('Combos & routines', ORANGE);
+      const names = Object.fromEntries(combos.map((c) => [c.id, c.name]));
       for (const c of combos) {
-        item(`${c.name} (${c.kind})`, { done: done.has(`combo:${c.id}`), url: c.video_url ? shareUrl(c.video_url) : '', note: showNotes ? c.notes : '' });
+        const after = (c.after_combos || []).filter((id) => names[id]).map((id) => names[id]);
+        const note = [after.length ? `Ready after: ${after.join(', ')}` : '', showNotes ? c.notes : ''].filter(Boolean).join(' · ');
+        item(`${c.name} (${c.kind})`, { done: done.has(`combo:${c.id}`), url: c.video_url ? shareUrl(c.video_url) : '', note });
       }
     }
   });

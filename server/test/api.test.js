@@ -192,3 +192,20 @@ test('official required elements are stored, normalised and round-trip', async (
   b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
   assert.equal(b.getSkill('S019').required_elements, 'Multiples, Power & Gymnastics');
 });
+
+test('combos and routines can be ready after other combos (chains)', async () => {
+  const s = await fresh();
+  const routine = s.createCombo({ name: 'Big routine', kind: 'routine', after_combos: ['C001'] });
+  const finale = s.createCombo({ name: 'Finale', after_combos: [routine.id] });
+  assert.deepEqual(s.getCombo(routine.id).after_combos, ['C001']);
+  // S201 is C001's checkpoint → C001 suggested → routine → finale
+  let w = s.saveWorkout('A01', { skill_ids: ['S201'] });
+  assert.deepEqual(w.combos.map((c) => c.id).sort(), ['C001', routine.id, finale.id].sort());
+  // dismissing the routine stops it (and what hangs off it only appears if the athlete has the routine)
+  w = s.saveWorkout('A01', { skill_ids: ['S201'], dismissed_ids: [routine.id] });
+  assert.deepEqual(w.combos.map((c) => c.id), ['C001']);
+  // round-trips
+  const b = openDb(':memory:');
+  b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
+  assert.deepEqual(b.getCombo(finale.id).after_combos, [routine.id]);
+});
