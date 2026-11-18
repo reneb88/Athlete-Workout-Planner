@@ -40,7 +40,11 @@ export default function Athletes() {
     <div className="page">
       <div className="page-head">
         <div><h1>Athletes</h1><p className="muted">{athletes.length} athletes on the roster. Open an athlete to see their checklist and track progress.</p></div>
-        <button className="btn primary" onClick={() => setEditing({})}><Icon name="plus" /> Add athlete</button>
+        <div className="btn-group">
+          <button className="btn" onClick={() => go('print', 'all')}><Icon name="print" size={18} /> Print all assignments</button>
+          <button className="btn ghost" onClick={() => go('print', 'overview')}>Overview</button>
+          <button className="btn primary" onClick={() => setEditing({})}><Icon name="plus" /> Add athlete</button>
+        </div>
       </div>
       {without.length > 0 && show !== 'none' && (
         <div className="banner warn">

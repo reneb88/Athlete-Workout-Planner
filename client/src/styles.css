@@ -258,6 +258,15 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--line-2); }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .field-label { font-size: 14px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.drag-grip { display: inline-flex; align-items: center; justify-content: center; width: 30px; min-height: 44px; flex: none; color: #9aa3b2;
+  cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; }
+.drag-grip:hover { color: var(--ink); background: var(--line-2); }
+.skill-row.dragging { position: relative; z-index: 5; box-shadow: 0 10px 28px rgba(15, 23, 42, .22); background: #fff; cursor: grabbing; }
+.is-dragging .skill-row:not(.dragging) { transition: none; }
+.skill-row.drop-before { box-shadow: inset 0 3px 0 var(--orange); }
+.skill-row.drop-after { box-shadow: inset 0 -3px 0 var(--orange); }
+.step-control { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.step-control .select { flex: 1; min-width: 140px; }
 .pick-new { display: flex; gap: 8px; align-items: center; }
 .pick-new input { flex: 1; }
 .field-hint { font-size: 13px; color: var(--ink-2); }
@@ -392,6 +401,12 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .film-print { display: none; }
 
 /* ---------- Print centre ---------- */
+.print-all { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; border-left: 6px solid var(--orange); }
+.print-all .grow { display: flex; flex-direction: column; }
+.ov-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: .9em; }
+.ov-table th, .ov-table td { text-align: left; vertical-align: top; padding: 5px 6px; border-bottom: 1px solid #e5e7eb; }
+.ov-table th { font-size: .8em; text-transform: uppercase; letter-spacing: .04em; color: #555; }
+.ov-table td:nth-child(2), .ov-table td:last-child { white-space: nowrap; }
 .print-opts { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 16px 0; }
 .opt { display: flex; align-items: center; gap: 12px; font-weight: 600; cursor: pointer; min-height: 48px; }
 .preview-title { margin: 22px 0 10px; }

@@ -197,3 +197,84 @@ export function ReTags({ skill }) {
   if (!list.length) return null;
   return list.map((r) => <span key={r} className="tag re" title={`Official required element: ${r}`}>RE · {r}</span>);
 }
+
+/**
+ * Drag-to-reorder for a list, with a grip handle. Uses pointer events so it works with a finger on
+ * iPad as well as a mouse. `onReorder(newIds)` is called when a row is dropped in a new place.
+ */
+export function useDragReorder(ids, onReorder, enabled = true) {
+  const [drag, setDrag] = useState(null); // { id, y0, dy, to }
+  const listRef = useRef(null);
+  const dragRef = useRef(null);
+  dragRef.current = drag;
+
+  const targetIndex = (clientY, id) => {
+    const rows = [...(listRef.current?.querySelectorAll('[data-drag-id]') || [])].filter((r) => r.dataset.dragId !== id);
+    let to = 0;
+    for (const r of rows) {
+      const b = r.getBoundingClientRect();
+      if (clientY > b.top + b.height / 2) to++;
+    }
+    return to;
+  };
+  const finish = () => {
+    const d = dragRef.current;
+    setDrag(null);
+    if (!d) return;
+    const rest = ids.filter((x) => x !== d.id);
+    rest.splice(d.to, 0, d.id);
+    if (rest.join() !== ids.join()) onReorder(rest);
+  };
+
+  const handleProps = (id) => (!enabled ? { style: { display: 'none' } } : {
+    className: 'drag-grip',
+    role: 'button',
+    'aria-label': 'Drag to reorder',
+    title: 'Drag to reorder',
+    onClick: (e) => e.stopPropagation(),
+    onPointerDown: (e) => {
+      e.preventDefault(); e.stopPropagation();
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDrag({ id, y0: e.clientY, dy: 0, to: ids.filter((x) => x !== id).length ? ids.indexOf(id) : 0 });
+    },
+    onPointerMove: (e) => {
+      const d = dragRef.current;
+      if (!d || d.id !== id) return;
+      setDrag({ ...d, dy: e.clientY - d.y0, to: targetIndex(e.clientY, id) });
+    },
+    onPointerUp: finish,
+    onPointerCancel: () => setDrag(null),
+  });
+
+  const rowProps = (id) => {
+    if (!drag) return { 'data-drag-id': id };
+    if (drag.id === id) return { 'data-drag-id': id, className: 'dragging', style: { transform: `translateY(${drag.dy}px)` } };
+    const rest = ids.filter((x) => x !== drag.id);
+    const i = rest.indexOf(id);
+    const cls = i === drag.to ? 'drop-before' : (i === rest.length - 1 && drag.to === rest.length ? 'drop-after' : '');
+    return { 'data-drag-id': id, className: cls };
+  };
+
+  return { listRef, handleProps, rowProps, dragging: !!drag };
+}
+
+export function Grip(props) {
+  return (
+    <span {...props}>
+      <svg width="16" height="22" viewBox="0 0 16 22" aria-hidden="true">
+        {[4, 11, 18].flatMap((y) => [5, 11].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.8" fill="currentColor" />))}
+      </svg>
+    </span>
+  );
+}
+
+/** An <ol> whose items can be dragged by their grip. renderItem(item, index, { rowProps, grip }). */
+export function SortableList({ items, getId = (x) => x.id, enabled = true, onReorder, className = '', renderItem }) {
+  const ids = items.map(getId);
+  const dnd = useDragReorder(ids, onReorder, enabled);
+  return (
+    <ol ref={dnd.listRef} className={`${className} ${dnd.dragging ? 'is-dragging' : ''}`}>
+      {items.map((it, i) => renderItem(it, i, { rowProps: dnd.rowProps(getId(it)), grip: enabled ? <Grip {...dnd.handleProps(getId(it))} /> : null }))}
+    </ol>
+  );
+}

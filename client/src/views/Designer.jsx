@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, ReTags, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, ReTags, SearchBox, Seg, SortableList, useApp, useOpenSet } from '../components.jsx';
 import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { SkillEditor } from './Library.jsx';
@@ -291,11 +291,13 @@ export default function Designer({ initialAthlete }) {
                               <button className="btn ghost sm push" title="Add a step to this family"
                                 onClick={(e) => { e.stopPropagation(); setEditing({ category: f.category, subcategory: f.subcategory, family: f.name }); }}>
                                 <Icon name="plus" size={16} /> Add step</button></>}>
-                            <ol className="skill-list pick">
-                              {f.skills.map((sk, i) => {
+                            <SortableList className="skill-list pick" items={f.skills} enabled={!searching}
+                              onReorder={(ids) => run(() => api.reorderSkills(ids), `${f.name}: new order saved`)}
+                              renderItem={(sk, i, { rowProps, grip }) => {
                                 const on = work.skills.has(sk.id);
                                 return (
-                                  <li key={sk.id} className={`skill-row ${on ? 'on' : ''}`} onClick={() => setSkills([sk.id], !on)}>
+                                  <li key={sk.id} {...rowProps} className={`skill-row ${on ? 'on' : ''} ${rowProps.className || ''}`} onClick={() => setSkills([sk.id], !on)}>
+                                    {grip}
                                     <Check checked={on} onChange={(v) => setSkills([sk.id], v)} label={skillLabel(sk)} />
                                     <span className="seq">{i + 1}</span>
                                     <div className="skill-main">
@@ -312,8 +314,7 @@ export default function Designer({ initialAthlete }) {
                                       onClick={(e) => { e.stopPropagation(); setEditing(sk); }}><Icon name="edit" size={18} /></button>
                                   </li>
                                 );
-                              })}
-                            </ol>
+                              }} />
                           </Disclosure>
                         );
                       })}

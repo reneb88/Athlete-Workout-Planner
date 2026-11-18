@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, ReTags, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, ReTags, SearchBox, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
 import { duplicateSkill } from '../duplicate.js';
@@ -91,9 +91,11 @@ export default function Library() {
                       <Icon name="play" size={16} /> Family video</button>
                     <button className="btn ghost sm" onClick={(e) => { e.stopPropagation(); setEditing({ category: c.name, subcategory: s.name, family: f.name }); }}>
                       <Icon name="plus" size={18} /> Add step</button></>}>
-                  <ol className="skill-list">
-                    {f.skills.map((sk, i) => (
-                      <li key={sk.id} className="skill-row">
+                  <SortableList className="skill-list" items={f.skills} enabled={!searching}
+                    onReorder={(ids) => run(() => api.reorderSkills(ids), `${f.name}: new order saved`)}
+                    renderItem={(sk, i, { rowProps, grip }) => (
+                      <li key={sk.id} {...rowProps} className={`skill-row ${rowProps.className || ''}`}>
+                        {grip}
                         <span className="seq">{i + 1}</span>
                         <div className="skill-main" onClick={() => setEditing(sk)}>
                           <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
@@ -120,8 +122,7 @@ export default function Library() {
                           <button className="icon-btn danger" aria-label="Delete" onClick={() => setDeleting(sk)}><Icon name="trash" /></button>
                         </div>
                       </li>
-                    ))}
-                  </ol>
+                    )} />
                 </Disclosure>
               ))}
             </Disclosure>
@@ -160,7 +161,8 @@ export function SkillEditor({ skill, onClose }) {
 
   async function save() {
     const body = { ...f };
-    if (body.sequence === '' || body.sequence === undefined) delete body.sequence;
+    // Position is changed with the Step controls (saved straight away), so never send a stale step number.
+    delete body.sequence;
     delete body.id; delete body.sort_order;
     const saved = await run(() => (isNew ? api.createSkill(body) : api.updateSkill(skill.id, body)), isNew ? `“${f.name}” added to ${f.family || 'the library'}` : 'Challenge saved');
     if (isNew && after !== 'end' && famSteps.length) {
@@ -225,11 +227,7 @@ export function SkillEditor({ skill, onClose }) {
         )}
         <Field label="Target"><input value={f.target} onChange={set('target')} placeholder="e.g. 10 jumps" /></Field>
         <Field label="Level"><input value={f.level} onChange={set('level')} placeholder="optional" /></Field>
-        {!isNew && (
-          <Field label="Sequence" hint="Or use the arrows in the library">
-            <input type="number" inputMode="numeric" value={f.sequence} onChange={set('sequence')} />
-          </Field>
-        )}
+        {!isNew && <StepControl skill={skill} family={f.family} />}
         <Field label="Related manipulation"><input value={f.related} onChange={set('related')} /></Field>
         <Field label="Video link" hint="YouTube, Vimeo or a direct .mp4 link">
           <input type="url" inputMode="url" value={f.video_url} onChange={set('video_url')} placeholder="https://" />
@@ -300,5 +298,33 @@ function PickOrNew({ value, options, onChange, placeholder, what, disabled }) {
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
       <option value="__new">＋ New {what}…</option>
     </select>
+  );
+}
+
+/** Move an existing challenge up/down within its family; saved immediately. */
+function StepControl({ skill, family }) {
+  const { skills, run } = useApp();
+  const fam = familySkills(skills, skill.family);
+  const pos = fam.findIndex((x) => x.id === skill.id);
+  if (family.trim().toLowerCase() !== String(skill.family).trim().toLowerCase()) {
+    return <Field label="Step"><p className="muted small">Saving moves it to the end of “{family}”. You can then move it here.</p></Field>;
+  }
+  const moveTo = (to) => {
+    const ids = fam.map((x) => x.id).filter((id) => id !== skill.id);
+    ids.splice(Math.max(0, Math.min(ids.length, to)), 0, skill.id);
+    return run(() => api.reorderSkills(ids), `Moved to step ${Math.max(0, Math.min(ids.length - 1, to)) + 1}`);
+  };
+  return (
+    <Field group label="Step in the progression">
+      <div className="step-control">
+        <button type="button" className="icon-btn" aria-label="Move up" disabled={pos <= 0} onClick={() => moveTo(pos - 1)}><Icon name="up" /></button>
+        <b>Step {pos + 1} of {fam.length}</b>
+        <button type="button" className="icon-btn" aria-label="Move down" disabled={pos >= fam.length - 1} onClick={() => moveTo(pos + 1)}><Icon name="down" /></button>
+        <select className="select" value="" aria-label="Move to step" onChange={(e) => e.target.value !== '' && moveTo(Number(e.target.value))}>
+          <option value="">Move to…</option>
+          {fam.map((x, i) => i !== pos && <option key={x.id} value={i}>Step {i + 1}{i < pos ? ' (before' : ' (after'} “{skillLabel(x)}”)</option>)}
+        </select>
+      </div>
+    </Field>
   );
 }
