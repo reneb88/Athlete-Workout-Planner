@@ -20,6 +20,9 @@ export default function Designer({ initialAthlete }) {
   const [modal, setModal] = useState(null);
   const tree = useOpenSet();
   const lastAuto = useRef(null);
+  const autoLoaded = useRef(false); // working set is just an athlete's saved workout, shown automatically
+  const [batch, setBatch] = useState(null); // athletes from the last group save, for one-by-one adjustments
+  const [adjusted, setAdjusted] = useState(() => new Set());
 
   // ----- derived combo state -----
   const checkpointMap = useMemo(() => {
@@ -50,6 +53,7 @@ export default function Designer({ initialAthlete }) {
       dismissed: new Set(w.dismissed_ids),
     });
     setLoadedFrom(label ?? `${athleteById[id]?.name}’s saved workout`);
+    autoLoaded.current = !label;
     setDirty(false);
   }
   function loadTemplate(t) {
@@ -65,6 +69,12 @@ export default function Designer({ initialAthlete }) {
       loadAthlete(selected[0]).catch((e) => toast(e.message, 'err'));
     }
     if (selected.length !== 1) lastAuto.current = null;
+    // Picking several athletes starts a fresh group workout instead of reusing one athlete's saved plan.
+    if (selected.length > 1 && !dirty && autoLoaded.current) {
+      autoLoaded.current = false;
+      setWork(emptyWork());
+      setLoadedFrom(null);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected, dirty]);
 
@@ -99,7 +109,27 @@ export default function Designer({ initialAthlete }) {
       : api.saveWorkouts(selected, { ...payload(), mode })),
     `${mode === 'add' ? 'Added to' : 'Saved for'} ${selected.length > 3 ? `${selected.length} athletes` : names}`);
     setDirty(false);
-    if (selected.length === 1) { lastAuto.current = null; await loadAthlete(selected[0]); }
+    if (selected.length === 1) {
+      if (batch?.includes(selected[0])) setAdjusted((a) => new Set(a).add(selected[0]));
+      lastAuto.current = null;
+      await loadAthlete(selected[0]);
+    } else {
+      setBatch([...selected]);
+      setAdjusted(new Set());
+    }
+  }
+
+  // Switch to one athlete from the group to fine-tune their copy.
+  function adjust(id, force = false) {
+    if (!force && dirty && !window.confirm('You have unsaved changes. Discard them and switch athlete?')) return;
+    setDirty(false);
+    lastAuto.current = null;
+    setSelected([id]);
+  }
+  const nextInBatch = batch && selected.length === 1 ? batch[batch.indexOf(selected[0]) + 1] : undefined;
+  async function saveAndNext() {
+    await save('replace');
+    if (nextInBatch) adjust(nextInBatch, true);
   }
 
   function toggleAthlete(id) {
@@ -147,6 +177,23 @@ export default function Designer({ initialAthlete }) {
           ))}
         </div>
       </section>
+
+      {batch && (
+        <section className="card batch-card">
+          <div className="card-head">
+            <h2>Personal adjustments <span className="count">{adjusted.size}/{batch.length} adjusted</span></h2>
+            <button className="btn ghost sm" onClick={() => { setBatch(null); setAdjusted(new Set()); }}>Done</button>
+          </div>
+          <p className="muted small">The group workout is saved for everyone. Tap an athlete to add or remove challenges just for them, then press <b>Save & next</b>.</p>
+          <div className="batch-chips">
+            {batch.filter((id) => athleteById[id]).map((id) => (
+              <button key={id} className={`batch-chip ${selected.length === 1 && selected[0] === id ? 'on' : ''} ${adjusted.has(id) ? 'done' : ''}`} onClick={() => adjust(id)}>
+                {adjusted.has(id) && <Icon name="check" size={16} />} {athleteById[id].name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="designer-cols">
         {/* ---------- Skill tree ---------- */}
@@ -222,13 +269,19 @@ export default function Designer({ initialAthlete }) {
 
           <div className="btn-stack">
             {selected.length <= 1 ? (
-              <button className="btn primary block" disabled={!selected.length} onClick={() => save('replace')}>
-                {selected.length ? `Save for ${athleteById[selected[0]]?.name}` : 'Select an athlete to save'}
-              </button>
+              <>
+                {nextInBatch && batch?.includes(selected[0]) && (
+                  <button className="btn primary block" onClick={saveAndNext}>Save & next: {athleteById[nextInBatch]?.name} →</button>
+                )}
+                <button className={`btn block ${nextInBatch && batch?.includes(selected[0]) ? '' : 'primary'}`} disabled={!selected.length} onClick={() => save('replace')}>
+                  {selected.length ? `Save for ${athleteById[selected[0]]?.name}` : 'Select an athlete to save'}
+                </button>
+              </>
             ) : (
               <>
-                <button className="btn primary block" onClick={() => save('replace')}>Save for {selected.length} athletes (replace)</button>
-                <button className="btn block" onClick={() => save('add')}>Add to {selected.length} athletes’ existing workouts</button>
+                <button className="btn primary block" onClick={() => save('add')}>Add to {selected.length} athletes’ workouts</button>
+                <button className="btn block" onClick={() => save('replace')}>Replace {selected.length} athletes’ workouts with this</button>
+                <p className="muted small">“Add” keeps what each athlete already has. “Replace” overwrites it.</p>
               </>
             )}
             <div className="btn-row">

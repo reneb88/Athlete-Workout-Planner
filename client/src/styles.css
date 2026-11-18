@@ -215,6 +215,12 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .sum-fam ul { list-style: none; padding: 0; margin: 0; }
 .sum-fam li { display: flex; align-items: center; justify-content: space-between; font-size: 15px; padding-left: 4px; }
 
+.batch-card { margin-bottom: 16px; border-left: 6px solid var(--orange); }
+.batch-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.batch-chip { min-height: 48px; padding: 0 16px; border-radius: 99px; border: 1.5px solid var(--line); background: #fff; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.batch-chip.done { border-color: var(--ok); color: var(--ok); background: #effaf5; }
+.batch-chip.on { background: var(--navy); border-color: var(--navy); color: #fff; }
+
 /* ---------- Lists / modals ---------- */
 .list-pick { display: flex; flex-direction: column; gap: 6px; }
 .list-row { display: flex; gap: 6px; align-items: center; }
