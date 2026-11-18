@@ -7,13 +7,17 @@ import Combos from './views/Combos.jsx';
 import Athletes from './views/Athletes.jsx';
 import AthleteView from './views/AthleteView.jsx';
 import DataPage from './views/DataPage.jsx';
+import PrintCenter from './views/PrintCenter.jsx';
+import Spreadsheet from './views/Spreadsheet.jsx';
 
 const NAV = [
   { id: 'designer', label: 'Workout Designer', short: 'Designer' },
+  { id: 'print', label: 'Print', short: 'Print' },
   { id: 'library', label: 'Master Library', short: 'Library' },
   { id: 'combos', label: 'Combo Library', short: 'Combos' },
+  { id: 'sheet', label: 'Spreadsheet', short: 'Sheet' },
   { id: 'athletes', label: 'Athletes', short: 'Athletes' },
-  { id: 'data', label: 'Import / Export', short: 'Data' },
+  { id: 'data', label: 'Import/Export', short: 'Data' },
 ];
 
 function parseHash() {
@@ -102,7 +106,9 @@ export default function App() {
             {route.page === 'athletes' && <Athletes />}
             {route.page === 'athlete' && <AthleteView athleteId={route.arg} key={route.arg} />}
             {route.page === 'data' && <DataPage />}
-            {!['designer', 'library', 'combos', 'athletes', 'athlete', 'data'].includes(route.page) && <Designer />}
+            {route.page === 'print' && <PrintCenter initial={route.arg} key={route.arg || 'print'} />}
+            {route.page === 'sheet' && <Spreadsheet />}
+            {!['designer', 'library', 'combos', 'athletes', 'athlete', 'data', 'print', 'sheet'].includes(route.page) && <Designer />}
           </AppCtx.Provider>
         )}
       </main>

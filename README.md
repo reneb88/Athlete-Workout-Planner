@@ -12,25 +12,24 @@ An iPad-friendly web app for planning and tracking jump rope training: a master 
   - save and load reusable templates
 - **Combo Library**: combos and routines. Each can stand alone or be linked to one or more readiness-checkpoint skills. When a checkpoint is assigned, its combo is suggested automatically. The coach can keep or remove the suggestion for each athlete, and a removed suggestion stays removed. Combos are optional and are not progression steps.
 - **Athlete View**: shows only the assigned challenges, grouped into collapsible skill families. It has large completion checkboxes and video demos (YouTube, Vimeo or .mp4 links play inside the app). Combo suggestions appear next to their checkpoints, and there's a separate Combos & Routines section. Progress is saved in the database.
-- **Print and PDF**: a branded printable checklist (Print button) and a branded PDF download.
+- **Print**: choose today's athletes (or everyone with a workout) and print them all at once, one athlete per page. You can also save them as a single PDF. Options: leave out challenges already checked off, include teaching notes. There's a live preview before printing.
+- **Spreadsheet**: an editable, spreadsheet-style grid for the Master Library, the Athletes and the Combos. Tap a cell, type, and it saves when you move on. Add or delete rows.
 - **Import / Export**: an `.xlsx` workbook (Excel or Google Sheets) containing the library, roster, combos, assignments, progress and templates. Import accepts the original *Ropeworks Athlete Workout Designer* workbook or this app's own export, in merge or replace mode.
 - **Storage**: a SQLite database on the server (`data/ropeworks.db`), so every device sees the same data.
 
-## Run it
+## Run it on your computer
 
-Requires **Node.js 22.13 or newer**.
+1. Install **Node.js** (the “LTS” version) from https://nodejs.org. You only do this once.
+2. Download this project from GitHub (**Code → Download ZIP**) and unzip it.
+3. Double-click **`Start Ropeworks (Windows).bat`**. On a Mac, use **`Start Ropeworks (Mac).command`** instead.
+   - The first start takes a minute while it installs.
+   - Your browser then opens the app at http://localhost:3001.
+   - Keep the black window open while you use the app, and close it to stop.
+4. **On your iPad**: while the app is running on your computer, the black window shows an *“On your iPad”* address, for example `http://192.168.1.20:3001`. Open that address in Safari on the same Wi-Fi.
 
-```bash
-npm install
-npm run build
-npm start            # → http://localhost:3001
-```
+Your data lives in `data/ropeworks.db` inside the project folder. Back it up by copying that file, or by using **Import / Export → Download spreadsheet**.
 
-To use it on an iPad at practice, run it on a laptop on the same Wi-Fi and open `http://<laptop-ip>:3001` in Safari. Then choose **Share → Add to Home Screen** so it opens full screen like an app.
-
-For development with hot reload, run `npm run dev` and open http://localhost:5173.
-
-Run the tests with `npm test`.
+For developers: run `npm install`, then `npm run dev` (hot reload on :5173), `npm test` or `npm start`.
 
 ### Your athlete roster
 

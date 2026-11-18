@@ -4,6 +4,7 @@ import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } f
 import { buildTree, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
+import { PrintSheet } from '../printing.jsx';
 
 export default function AthleteView({ athleteId }) {
   const app = useApp();
@@ -69,6 +70,7 @@ export default function AthleteView({ athleteId }) {
             <button className="btn ghost sm" onClick={() => tree.setMany(families.map((f) => f.key), true)}>Expand all</button>
             <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
             <button className="btn sm" onClick={() => window.print()}><Icon name="print" size={18} /> Print</button>
+            <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
             <button className="btn sm" onClick={() => exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint })}><Icon name="file" size={18} /> PDF</button>
             <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
           </div>
@@ -152,50 +154,8 @@ export default function AthleteView({ athleteId }) {
         )}
       </div>
 
-      <PrintSheet athlete={athlete} skills={assignedSkills} combos={assignedCombos} done={done} comboByCheckpoint={comboByCheckpoint} skillById={skillById} />
+      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint }} skillById={skillById} />
       {video && <VideoModal url={video.url} title={video.title} onClose={() => setVideo(null)} />}
-    </div>
-  );
-}
-
-/** Print-only branded checklist (everything expanded). */
-function PrintSheet({ athlete, skills, combos, done, comboByCheckpoint, skillById }) {
-  const nodes = buildTree(skills).filter((c) => c.subs.length);
-  return (
-    <div className="print-sheet">
-      <header className="ps-head">
-        <div className="ps-brand"><img src="/icon.svg" alt="" /><div><strong>ROPEWORKS</strong><span>Training Studio</span></div></div>
-        <div className="ps-who"><h1>{athlete.name}</h1><span>{[athlete.age && `Age ${athlete.age}`, athlete.group_notes, new Date().toLocaleDateString()].filter(Boolean).join(' · ')}</span></div>
-      </header>
-      {nodes.map((c) => (
-        <section key={c.key} className={`ps-cat cat-${c.name.toLowerCase()}`}>
-          <h2>{c.name}</h2>
-          {c.subs.flatMap((s) => s.families.map((f) => (
-            <div key={f.key} className="ps-fam">
-              <h3>{f.name} <small>{s.name}</small></h3>
-              <ul>
-                {f.skills.map((sk) => (
-                  <li key={sk.id}>
-                    <span className={`ps-box ${done.has(`skill:${sk.id}`) ? 'on' : ''}`} />
-                    <span>{skillLabel(sk)}</span>
-                    {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this combo: {cb.name}</em>)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )))}
-        </section>
-      ))}
-      {combos.length > 0 && (
-        <section className="ps-cat">
-          <h2>Combos & routines</h2>
-          <ul>
-            {combos.map((c) => (
-              <li key={c.id}><span className={`ps-box ${done.has(`combo:${c.id}`) ? 'on' : ''}`} /><span>{c.name} <small>({c.kind}{c.checkpoints.length ? ` · after ${c.checkpoints.map((id) => skillById[id]?.name || id).join(', ')}` : ''})</small></span></li>
-            ))}
-          </ul>
-        </section>
-      )}
     </div>
   );
 }

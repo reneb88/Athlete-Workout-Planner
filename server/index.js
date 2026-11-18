@@ -1,6 +1,7 @@
 // Ropeworks Training Studio — HTTP API + static web app.
 import express from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
@@ -91,5 +92,12 @@ export async function createApp({ dbFile, seedFile } = {}) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT) || 3001;
   const app = await createApp();
-  app.listen(port, '0.0.0.0', () => console.log(`Ropeworks Training Studio running on http://localhost:${port}`));
+  app.listen(port, '0.0.0.0', () => {
+    const lan = Object.values(os.networkInterfaces()).flat()
+      .filter((n) => n && n.family === 'IPv4' && !n.internal).map((n) => `http://${n.address}:${port}`);
+    console.log('\n  Ropeworks Training Studio is running.\n');
+    console.log(`  On this computer:   http://localhost:${port}`);
+    for (const u of lan) console.log(`  On your iPad:       ${u}   (same Wi-Fi)`);
+    console.log('\n  Keep this window open while you use the app. Close it to stop.\n');
+  });
 }

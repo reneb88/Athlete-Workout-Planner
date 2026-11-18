@@ -236,6 +236,7 @@ export default function Designer({ initialAthlete }) {
               <button className="btn ghost sm" onClick={() => setModal('templates')}><Icon name="file" size={18} /> Templates</button>
               <button className="btn ghost sm" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('saveTemplate')}>Save as template</button>
               {selected.length === 1 && <button className="btn ghost sm" onClick={() => go('athlete', selected[0])}><Icon name="user" size={18} /> Athlete view</button>}
+              {selected.length > 0 && <button className="btn ghost sm" disabled={dirty} title={dirty ? 'Save first' : ''} onClick={() => go('print', selected.join(','))}><Icon name="print" size={18} /> Print {selected.length > 1 ? selected.length : ''}</button>}
               <button className="btn ghost sm danger-text" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('clear')}>Clear</button>
             </div>
           </div>
