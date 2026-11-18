@@ -4,6 +4,7 @@ import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, ReTags, SearchBo
 import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { SkillEditor } from './Library.jsx';
+import { duplicateSkill } from '../duplicate.js';
 
 const emptyWork = () => ({ skills: new Set(), manual: new Set(), dismissed: new Set() });
 
@@ -297,6 +298,8 @@ export default function Designer({ initialAthlete }) {
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
                                       )}
                                     </div>
+                                    <button className="icon-btn sm" aria-label={`Duplicate ${sk.id}`} title="Duplicate (copy right below)"
+                                      onClick={async (e) => { e.stopPropagation(); setEditing(await duplicateSkill(run, skills, sk)); }}><Icon name="copy" size={18} /></button>
                                     <button className="icon-btn sm" aria-label={`Edit ${sk.name}`} title="Edit this challenge"
                                       onClick={(e) => { e.stopPropagation(); setEditing(sk); }}><Icon name="edit" size={18} /></button>
                                   </li>

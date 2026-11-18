@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, FamilySelect, Icon, Modal, SearchBox, Seg, useApp } from '../components.jsx';
+import { duplicateSkill } from '../duplicate.js';
 import { CATEGORIES, buildTree, familyHomes, homeOf, matchesSearch } from '../util.js';
 
 /*
@@ -244,6 +245,14 @@ export default function Spreadsheet() {
                       <button className="icon-btn sm" aria-label={`Move ${row.id} up`} disabled={groups.byId[row.id]?.pos === 1} onClick={() => nudge(row, -1)}><Icon name="up" size={18} /></button>
                       <button className="icon-btn sm" aria-label={`Move ${row.id} down`} disabled={groups.byId[row.id]?.pos === groups.byId[row.id]?.ids.length} onClick={() => nudge(row, 1)}><Icon name="down" size={18} /></button>
                       <button className="icon-btn sm" aria-label={`Insert a step below ${row.id}`} title="Insert a new step below" onClick={() => insertBelow(row)}><Icon name="plus" size={18} /></button>
+                      <button className="icon-btn sm" aria-label={`Duplicate ${row.id}`} title="Duplicate (copy right below)" onClick={async () => {
+                        const c = await duplicateSkill(run, skills, skills.find((x) => x.id === row.id) || row);
+                        setQ('');
+                        setTimeout(() => {
+                          const el = document.querySelector(`input[aria-label="Challenge / progression for ${c.id}"]`);
+                          if (el) { el.scrollIntoView({ block: 'center' }); el.focus(); el.select(); }
+                        }, 150);
+                      }}><Icon name="copy" size={18} /></button>
                     </>}
                     <button className="icon-btn sm danger" aria-label={`Delete ${row.id}`} onClick={() => setDel(row)}><Icon name="trash" size={18} /></button>
                   </div>

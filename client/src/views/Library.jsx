@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, ReTags, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
+import { duplicateSkill } from '../duplicate.js';
 import { CATEGORIES, REQUIRED_ELEMENTS, reList, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
@@ -114,6 +115,8 @@ export default function Library() {
                             <button className="icon-btn" aria-label="Move down" disabled={i === f.skills.length - 1} onClick={() => move(f, i, 1)}><Icon name="down" /></button>
                           </>}
                           <button className="icon-btn" aria-label="Edit" onClick={() => setEditing(sk)}><Icon name="edit" /></button>
+                          <button className="icon-btn" aria-label={`Duplicate ${sk.id}`} title="Duplicate (copy right below)"
+                            onClick={async () => setEditing(await duplicateSkill(run, skills, sk))}><Icon name="copy" /></button>
                           <button className="icon-btn danger" aria-label="Delete" onClick={() => setDeleting(sk)}><Icon name="trash" /></button>
                         </div>
                       </li>
