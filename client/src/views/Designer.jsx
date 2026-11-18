@@ -22,12 +22,12 @@ export default function Designer({ initialAthlete }) {
   const [draft] = useState(() => {
     const d = readDraft();
     if (!d) return null;
-    if (initialAthlete && !d.dirty && !(d.selected?.length === 1 && d.selected[0] === initialAthlete)) return null;
+    if (initialAthlete && !d.dirty && (d.selected || []).join(',') !== initialAthlete) return null;
     return d;
   });
   const keep = (ids, byId) => (ids || []).filter((id) => byId[id]);
   const [selected, setSelected] = useState(() => (draft ? keep(draft.selected, athleteById)
-    : initialAthlete && athleteById[initialAthlete] ? [initialAthlete] : []));
+    : (initialAthlete || '').split(',').filter((id) => athleteById[id])));
   const [work, setWork] = useState(() => (draft ? {
     skills: new Set(keep(draft.skills, skillById)), manual: new Set(keep(draft.manual, comboById)), dismissed: new Set(keep(draft.dismissed, comboById)),
   } : emptyWork()));
