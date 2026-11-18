@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { embedUrl, formatTime, isDirectVideo, splitVideo } from './util.js';
+import { embedUrl, formatTime, isDirectVideo, isVimeo, splitVideo } from './util.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -71,13 +71,36 @@ export function VideoModal({ url, title, onClose }) {
       {src ? (
         isDirectVideo(src)
           ? <video className="video-frame" src={src} controls autoPlay playsInline />
-          : <iframe className="video-frame" src={src} title={title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen />
+          : isVimeo(url)
+            ? <VimeoClip src={src} start={start} end={end} title={title} />
+            : <iframe className="video-frame" src={src} title={title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen />
       ) : (
         <p className="muted">This link can’t be played inside the app.</p>
       )}
       <p><a className="btn ghost" href={url} target="_blank" rel="noreferrer"><Icon name="link" /> Open video in new tab</a></p>
     </Modal>
   );
+}
+
+/** Vimeo player that starts at `start` and pauses at `end` (Vimeo links can't stop on their own). */
+function VimeoClip({ src, start, end, title }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    let player;
+    let cancelled = false;
+    import('@vimeo/player').then(({ default: Player }) => {
+      if (cancelled || !ref.current) return;
+      player = new Player(ref.current);
+      if (start) player.setCurrentTime(start).catch(() => {});
+      if (end) {
+        player.on('timeupdate', ({ seconds }) => {
+          if (seconds >= end) player.pause().then(() => player.setCurrentTime(start || 0)).catch(() => {});
+        });
+      }
+    });
+    return () => { cancelled = true; player?.off?.('timeupdate'); };
+  }, [src, start, end]);
+  return <iframe ref={ref} className="video-frame" src={src} title={title} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />;
 }
 
 export function Confirm({ text, confirmLabel = 'Delete', onConfirm, onClose }) {

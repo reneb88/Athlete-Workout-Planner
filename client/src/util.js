@@ -119,8 +119,13 @@ export function embedUrl(url) {
       if (m) return yt(m[2]);
     }
     if (host === 'vimeo.com' || host === 'player.vimeo.com') {
-      const m = u.pathname.match(/(\d+)/);
-      if (m) return `https://player.vimeo.com/video/${m[1]}${start ? `#t=${start}s` : ''}`;
+      const v = vimeoInfo(url);
+      if (v) {
+        const q = new URLSearchParams({ playsinline: '1', dnt: '1' });
+        if (v.hash) q.set('h', v.hash);
+        if (start || end) q.set('autoplay', '1');
+        return `https://player.vimeo.com/video/${v.id}?${q}${start ? `#t=${start}s` : ''}`;
+      }
     }
     if (/\.(mp4|webm|mov|m4v)$/i.test(u.pathname)) {
       const clean = new URL(url);
@@ -131,5 +136,20 @@ export function embedUrl(url) {
   } catch { /* not a URL */ }
   return null;
 }
+
+/** Vimeo id + private hash from any Vimeo link (vimeo.com/123, vimeo.com/123/abcdef, player.vimeo.com/video/123?h=abcdef, …). */
+export function vimeoInfo(url) {
+  try {
+    const u = new URL(url);
+    if (!/(^|\.)vimeo\.com$/.test(u.hostname)) return null;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const i = parts.findIndex((p) => /^\d+$/.test(p));
+    if (i < 0) return null;
+    const next = parts[i + 1];
+    const hash = u.searchParams.get('h') || (next && /^[0-9a-f]{6,}$/i.test(next) ? next : null);
+    return { id: parts[i], hash };
+  } catch { return null; }
+}
+export const isVimeo = (url) => !!vimeoInfo(url);
 
 export const isDirectVideo = (url) => /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url || '');

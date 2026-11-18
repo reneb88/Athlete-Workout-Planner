@@ -51,8 +51,8 @@ export default function FamilyVideo({ family, onClose }) {
   return (
     <Modal title={`Family video · ${family.name}`} onClose={onClose} wide
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button><button className="btn primary" onClick={save}>Save</button></>}>
-      <Field label="Video for the whole family" hint="Paste a YouTube, Vimeo or .mp4 link">
-        <input type="url" inputMode="url" value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://youtu.be/…" autoFocus={!base} />
+      <Field label="Video for the whole family" hint="Paste the Vimeo link (or YouTube / .mp4). Private/unlisted Vimeo links work too.">
+        <input type="url" inputMode="url" value={base} onChange={(e) => setBase(e.target.value)} placeholder="https://vimeo.com/…" autoFocus={!base} />
       </Field>
       <p className="muted small">Type where each step starts in the video, like <b>0:45</b> or <b>1:30</b>. Leave a time blank for a step with no video.</p>
       <table className="fv-table">
@@ -78,7 +78,7 @@ export default function FamilyVideo({ family, onClose }) {
         </tbody>
       </table>
       <label className="opt"><input type="checkbox" checked={stopAtNext} onChange={(e) => setStopAtNext(e.target.checked)} />
-        Stop each clip where the next step starts (YouTube and .mp4)</label>
+        Stop each clip where the next step starts</label>
       {preview && <VideoModal url={preview.url} title={preview.title} onClose={() => setPreview(null)} />}
     </Modal>
   );
