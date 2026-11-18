@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { embedUrl, formatTime, isDirectVideo, isVimeo, splitVideo } from './util.js';
+import { embedUrl, familyName, familyOptions, familyWhere, formatTime, isDirectVideo, isVimeo, splitVideo } from './util.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -166,4 +166,23 @@ export function Field({ label, children, hint }) {
 
 export function Empty({ title, children }) {
   return <div className="empty"><h3>{title}</h3>{children && <p>{children}</p>}</div>;
+}
+
+/** Pick a skill family (used for "Leads to"). value/onChange use the family key. */
+export function FamilySelect({ value, onChange, skills, exclude, className = 'select block', label = 'Leads to' }) {
+  const groups = familyOptions(skills);
+  const known = groups.some((g) => g.families.some((f) => f.key === value));
+  return (
+    <select className={className} value={value || ''} onChange={(e) => onChange(e.target.value)} aria-label={label}>
+      <option value="">— none —</option>
+      {value && !known && <option value={value}>{familyName(value)} (missing: {familyWhere(value)})</option>}
+      {groups.map((g) => (
+        <optgroup key={g.category} label={g.category}>
+          {g.families.filter((f) => f.key !== exclude).map((f) => (
+            <option key={f.key} value={f.key}>{f.name} — {f.where.split(' › ')[1]} ({f.count})</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  );
 }

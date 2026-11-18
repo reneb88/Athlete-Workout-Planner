@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Disclosure, Empty, Icon, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { buildTree, skillLabel, splitVideo } from '../util.js';
+import { buildTree, familyName, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -106,6 +106,7 @@ export default function AthleteView({ athleteId }) {
                         <div className="grow">
                           <div className="ci-name">{s.name}{s.target && <span className="target">{s.target}</span>}</div>
                           {s.teaching_notes && <div className="ci-notes">{s.teaching_notes}</div>}
+                          {s.leads_to && <div className="ci-next">→ Next skill: {familyName(s.leads_to)}</div>}
                         </div>
                         {s.video_url && <button className="icon-btn accent lg" aria-label="Watch demo" onClick={(e) => { e.stopPropagation(); setVideo({ url: s.video_url, title: skillLabel(s) }); }}><Icon name="play" /></button>}
                       </div>

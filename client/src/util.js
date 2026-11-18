@@ -153,3 +153,21 @@ export function vimeoInfo(url) {
 export const isVimeo = (url) => !!vimeoInfo(url);
 
 export const isDirectVideo = (url) => /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url || '');
+
+/** "Category|Subcategory|Family" — how a skill's "Leads to" points at a family. */
+export const familyKey = (s) => [s.category, s.subcategory || '', s.family || ''].join('|');
+export const familyName = (key) => (key ? key.split('|')[2] || '' : '');
+export const familyWhere = (key) => (key ? key.split('|').slice(0, 2).filter(Boolean).join(' › ') : '');
+/** Skills in a family, in step order. */
+export const familySkills = (skills, key) => skills.filter((s) => familyKey(s) === key)
+  .sort((a, b) => a.sequence - b.sequence || a.id.localeCompare(b.id));
+/** All families, for pickers: [{ category, families: [{ key, name, where, count }] }] */
+export function familyOptions(skills) {
+  return buildTree(skills).map((c) => ({
+    category: c.name,
+    families: c.subs.flatMap((sub) => sub.families.map((f) => {
+      const key = familyKey(f.skills[0]);
+      return { key, name: f.name, where: `${c.name} › ${sub.name}`, count: f.skills.length };
+    })),
+  })).filter((c) => c.families.length);
+}

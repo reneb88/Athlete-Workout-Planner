@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Confirm, Disclosure, Empty, FamilySelect, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
-import { CATEGORIES, buildTree, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, familyKey, familyName, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
   const { skills, combos, run } = useApp();
@@ -96,6 +96,7 @@ export default function Library() {
                             {sk.prerequisites.length > 0 && <span className="tag">Prereq: {sk.prerequisites.join(', ')}</span>}
                             {sk.teaching_notes && <span className="tag">Notes</span>}
                             {sk.review_notes && <span className="tag warn">Review</span>}
+                            {sk.leads_to && <span className="tag next">→ Leads to {familyName(sk.leads_to)}</span>}
                             {comboBySkill[sk.id]?.map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}
                           </div>
                         </div>
@@ -134,7 +135,7 @@ function SkillEditor({ skill, onClose }) {
   const isNew = !skill.id;
   const [f, setF] = useState({
     category: 'Manipulation', subcategory: '', family: '', name: '', target: '', level: '', sequence: '',
-    prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', ...skill,
+    prerequisites: [], related: '', video_url: '', teaching_notes: '', common_mistakes: '', review_notes: '', leads_to: '', ...skill,
   });
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target ? e.target.value : e }));
   const subs = [...new Set(skills.filter((s) => s.category === f.category).map((s) => s.subcategory))];
@@ -180,6 +181,9 @@ function SkillEditor({ skill, onClose }) {
       </div>
       <Field label="Prerequisites">
         <SkillPicker value={f.prerequisites} onChange={set('prerequisites')} exclude={skill.id} placeholder="Search for a prerequisite skill…" />
+      </Field>
+      <Field label="Leads to (next skill family)" hint="For “Try …” steps: when this step is assigned, the coach is offered this family’s whole progression.">
+        <FamilySelect value={f.leads_to} onChange={set('leads_to')} skills={skills} exclude={f.category ? familyKey(f) : undefined} />
       </Field>
       <div className="form-grid two">
         <Field label="Teaching notes / cues"><textarea rows={4} value={f.teaching_notes} onChange={set('teaching_notes')} /></Field>

@@ -53,6 +53,7 @@ const SKILL_ALIASES = {
   common_mistakes: ['Common mistakes'],
   source_page: ['Source page'],
   review_notes: ['Review notes'],
+  leads_to: ['Leads to', 'Leads to (next skill family)', 'Next skill'],
 };
 
 export async function parseWorkbook(buffer) {
@@ -154,8 +155,9 @@ export async function buildWorkbook(store) {
     { header: 'Common mistakes', key: 'common_mistakes', width: 30 },
     { header: 'Source page', key: 'source_page', width: 11 },
     { header: 'Review notes', key: 'review_notes', width: 30 },
+    { header: 'Leads to', key: 'leads_to', width: 40 },
   ];
-  for (const s of snap.skills) lib.addRow({ ...s, prerequisites: s.prerequisites.join(', ') });
+  for (const s of snap.skills) lib.addRow({ ...s, prerequisites: s.prerequisites.join(', '), leads_to: s.leads_to ? s.leads_to.split('|').join(' › ') : '' });
   styleHeader(lib);
 
   const ros = wb.addWorksheet('Athlete Roster');

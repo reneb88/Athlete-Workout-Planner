@@ -115,3 +115,19 @@ test('API requires the coach password', async () => {
     assert.equal((await fetch(base + '/api/state', { headers: { cookie } })).status, 401);
   } finally { server.close(); }
 });
+
+test('"Try" steps link to the family they lead to', async () => {
+  const s = await fresh();
+  assert.equal(s.getSkill('S004').leads_to, 'Manipulation|Starters|Basic bounce');
+  assert.equal(s.getSkill('S008').leads_to, 'Multiples|Doubles|Double under');
+  assert.equal(s.getSkill('S202').leads_to, ''); // "Try CC #1": no CC family
+  s.updateSkill('S202', { leads_to: 'Spiderman' });
+  assert.equal(s.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+  // round-trips through export/import
+  const b = openDb(':memory:');
+  b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
+  assert.equal(b.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+  // importing a workbook without a "Leads to" column keeps links made in the app
+  b.importData({ skills: [{ id: 'S202', category: 'Manipulation', subcategory: 'Arm Action/Crosses', family: 'Cross', name: 'Try CC #1' }] });
+  assert.equal(b.getSkill('S202').leads_to, 'Manipulation|Arm Action/Crosses|Spiderman');
+});

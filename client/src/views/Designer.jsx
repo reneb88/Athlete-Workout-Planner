@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, Icon, Modal, SearchBox, Seg, useApp, useOpenSet } from '../components.jsx';
-import { CATEGORIES, buildTree, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
+import { CATEGORIES, buildTree, familyName, familySkills, familyWhere, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 
 const emptyWork = () => ({ skills: new Set(), manual: new Set(), dismissed: new Set() });
@@ -43,6 +43,18 @@ export default function Designer({ initialAthlete }) {
     for (const id of suggested.keys()) if (!work.dismissed.has(id)) s.add(id);
     return s;
   }, [work.manual, work.dismissed, suggested]);
+
+  // "Try …" steps that lead to another family: offer that family's whole progression.
+  const nextUps = useMemo(() => {
+    const seen = new Map();
+    for (const id of work.skills) {
+      const sk = skillById[id];
+      if (!sk?.leads_to || seen.has(sk.leads_to)) continue;
+      const ids = familySkills(skills, sk.leads_to).map((x) => x.id);
+      if (ids.length) seen.set(sk.leads_to, { key: sk.leads_to, from: sk, ids });
+    }
+    return [...seen.values()];
+  }, [work.skills, skillById, skills]);
 
   // ----- loading -----
   async function loadAthlete(id, label) {
@@ -236,6 +248,7 @@ export default function Designer({ initialAthlete }) {
                                     <span className="seq">{i + 1}</span>
                                     <div className="skill-main">
                                       <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}</div>
+                                      {sk.leads_to && <div className="skill-meta"><span className="tag next">→ Leads to {familyName(sk.leads_to)}</span></div>}
                                       {checkpointMap[sk.id] && (
                                         <div className="skill-meta">{checkpointMap[sk.id].map((cb) => <span key={cb.id} className="tag combo"><Icon name="bolt" size={14} /> {cb.name}</span>)}</div>
                                       )}
@@ -293,6 +306,28 @@ export default function Designer({ initialAthlete }) {
               <button className="btn ghost sm danger-text" disabled={!work.skills.size && !activeCombos.size} onClick={() => setModal('clear')}>Clear</button>
             </div>
           </div>
+
+          {/* Next skills from "Try …" steps */}
+          {nextUps.length > 0 && (
+            <div className="next-panel">
+              <h3><Icon name="chevron" size={18} /> Ready for the next skill?</h3>
+              {nextUps.map((n) => {
+                const have = n.ids.filter((id) => work.skills.has(id)).length;
+                return (
+                  <div key={n.key} className="next-item">
+                    <div className="grow">
+                      <div className="cs-after">After “{n.from.name}”</div>
+                      <div className="cs-name">{familyName(n.key)}</div>
+                      <div className="cs-after">{familyWhere(n.key)} · {n.ids.length} steps</div>
+                    </div>
+                    {have === n.ids.length
+                      ? <span className="added"><Icon name="check" size={18} /> Added</span>
+                      : <button className="btn sm" onClick={() => setSkills(n.ids, true)}><Icon name="plus" size={18} /> {have ? `Add rest (${n.ids.length - have})` : 'Add progression'}</button>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Combos */}
           <div className="combo-panel">

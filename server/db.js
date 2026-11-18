@@ -22,8 +22,10 @@ CREATE TABLE IF NOT EXISTS skills (
   common_mistakes TEXT NOT NULL DEFAULT '',
   source_page TEXT NOT NULL DEFAULT '',
   review_notes TEXT NOT NULL DEFAULT '',
+  leads_to TEXT NOT NULL DEFAULT '',
   sort_order INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS athletes (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -82,7 +84,7 @@ CREATE TABLE IF NOT EXISTS templates (
 
 const SKILL_FIELDS = ['category', 'subcategory', 'family', 'name', 'level', 'sequence', 'target',
   'prerequisites', 'related', 'video_url', 'teaching_notes', 'common_mistakes', 'source_page',
-  'review_notes', 'sort_order'];
+  'review_notes', 'leads_to', 'sort_order'];
 
 const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 
@@ -91,8 +93,21 @@ export function openDb(file) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(SCHEMA);
-  return new Store(db);
+  // Migration: databases created before "Leads to" existed get the new column.
+  if (!db.prepare('PRAGMA table_info(skills)').all().some((c) => c.name === 'leads_to')) {
+    db.exec("ALTER TABLE skills ADD COLUMN leads_to TEXT NOT NULL DEFAULT ''");
+  }
+  const store = new Store(db);
+  // One time: link existing "Try …" steps to the family they lead to.
+  if (!db.prepare("SELECT 1 FROM settings WHERE key = 'autolink_try_v1'").get()) {
+    store.autoLinkTry();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('autolink_try_v1', '1')").run();
+  }
+  return store;
 }
+
+const normName = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9#]+/g, ' ').trim();
+export const familyKey = (s) => [s.category, s.subcategory || '', s.family || ''].join('|');
 
 function tx(db, fn) {
   db.exec('BEGIN');
@@ -125,7 +140,7 @@ export function normalizeSkill(input) {
   const s = {};
   for (const f of SKILL_FIELDS) if (f in input) s[f] = input[f];
   for (const f of ['category', 'subcategory', 'family', 'name', 'level', 'target', 'related', 'video_url',
-    'teaching_notes', 'common_mistakes', 'source_page', 'review_notes']) if (f in s) s[f] = str(s[f]);
+    'teaching_notes', 'common_mistakes', 'source_page', 'review_notes', 'leads_to']) if (f in s) s[f] = str(s[f]);
   if ('sequence' in s) s.sequence = Number(s.sequence) || 0;
   if ('sort_order' in s) s.sort_order = Number(s.sort_order) || 0;
   if ('prerequisites' in s) {
@@ -173,6 +188,7 @@ class Store {
     if (!s.category) throw httpError(400, 'Master category is required');
     const id = str(input.id) || nextId(this.db, 'skills', 'S', 3);
     if (this.getSkill(id)) throw httpError(409, `Skill ${id} already exists`);
+    if (s.leads_to) s.leads_to = this.resolveFamily(s.leads_to, s);
     if (!('sort_order' in s)) {
       s.sort_order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM skills').get().m ?? 0) + 1;
     }
@@ -189,8 +205,10 @@ class Store {
   }
 
   updateSkill(id, input) {
-    if (!this.getSkill(id)) throw httpError(404, 'Skill not found');
+    const cur = this.getSkill(id);
+    if (!cur) throw httpError(404, 'Skill not found');
     const s = normalizeSkill(input);
+    if (s.leads_to) s.leads_to = this.resolveFamily(s.leads_to, { ...cur, ...s });
     const keys = Object.keys(s);
     if (keys.length) {
       this.db.prepare(`UPDATE skills SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`)
@@ -212,6 +230,40 @@ class Store {
       const st = this.db.prepare('UPDATE skills SET sequence = ? WHERE id = ?');
       ids.forEach((id, i) => st.run(i + 1, id));
     });
+  }
+
+  /**
+   * Turn a family reference into a family key "Category|Subcategory|Family".
+   * Accepts a key, "Category › Subcategory › Family", or just a family name (then the family closest to
+   * `from` wins: same subcategory, then same category, then any). Returns '' if no such family exists.
+   */
+  resolveFamily(ref, from = {}) {
+    const raw = str(ref);
+    if (!raw) return '';
+    const fams = this.db.prepare('SELECT DISTINCT category, subcategory, family FROM skills').all();
+    const parts = raw.includes('|') ? raw.split('|') : raw.includes('›') ? raw.split('›') : null;
+    if (parts && parts.length === 3) {
+      const [c, sub, f] = parts.map((x) => normName(x));
+      const hit = fams.find((x) => normName(x.category) === c && normName(x.subcategory) === sub && normName(x.family) === f);
+      return hit ? familyKey(hit) : '';
+    }
+    const want = normName(raw);
+    const cands = fams.filter((x) => normName(x.family) === want && familyKey(x) !== familyKey(from));
+    const pick = cands.find((x) => x.category === from.category && x.subcategory === from.subcategory)
+      || cands.find((x) => x.category === from.category) || cands[0];
+    return pick ? familyKey(pick) : '';
+  }
+
+  /** Fill in "Leads to" for "Try X" steps whose X matches an existing skill family (only where it's empty). */
+  autoLinkTry() {
+    const rows = this.db.prepare("SELECT * FROM skills WHERE leads_to = '' AND lower(name) LIKE '%try %'").all();
+    let n = 0;
+    for (const r of rows) {
+      const m = r.name.match(/try\s+(.+)$/i);
+      const key = m && this.resolveFamily(m[1], r);
+      if (key) { this.db.prepare('UPDATE skills SET leads_to = ? WHERE id = ?').run(key, r.id); n++; }
+    }
+    return n;
   }
 
   // ---------- Athletes ----------
@@ -408,14 +460,24 @@ class Store {
         d.exec('DELETE FROM progress; DELETE FROM combo_dismissals; DELETE FROM combo_assignments; DELETE FROM skill_assignments; DELETE FROM combo_checkpoints; DELETE FROM combos; DELETE FROM athletes; DELETE FROM skills;');
         if (data.templates) d.exec('DELETE FROM templates');
       }
-      const upSkill = d.prepare(`INSERT INTO skills (id, ${SKILL_FIELDS.join(',')}) VALUES (?, ${SKILL_FIELDS.map(() => '?').join(',')})
-        ON CONFLICT(id) DO UPDATE SET ${SKILL_FIELDS.map((f) => `${f}=excluded.${f}`).join(', ')}`);
       (data.skills || []).forEach((raw, i) => {
         const s = normalizeSkill({ prerequisites: [], sort_order: i + 1, ...raw });
         if (!str(raw.id) || !s.name || !s.category) return;
-        upSkill.run(str(raw.id), ...SKILL_FIELDS.map((f) => s[f] ?? (f === 'sequence' || f === 'sort_order' ? 0 : '')));
+        // Existing rows: only overwrite columns the spreadsheet actually has, so e.g. videos or
+        // "Leads to" links added in the app survive importing an older workbook without those columns.
+        const upd = SKILL_FIELDS.filter((f) => f in raw || f === 'sort_order');
+        d.prepare(`INSERT INTO skills (id, ${SKILL_FIELDS.join(',')}) VALUES (?, ${SKILL_FIELDS.map(() => '?').join(',')})
+          ON CONFLICT(id) DO UPDATE SET ${upd.map((f) => `${f}=excluded.${f}`).join(', ')}`)
+          .run(str(raw.id), ...SKILL_FIELDS.map((f) => s[f] ?? (f === 'sequence' || f === 'sort_order' ? 0 : '')));
         counts.skills++;
       });
+      // second pass: "Leads to" may name families that were only just imported
+      for (const raw of data.skills || []) {
+        if (!str(raw.id) || !str(raw.leads_to)) continue;
+        const sk = this.getSkill(str(raw.id));
+        if (sk) this.db.prepare('UPDATE skills SET leads_to = ? WHERE id = ?').run(this.resolveFamily(raw.leads_to, sk), sk.id);
+      }
+      if ((data.skills || []).length) this.autoLinkTry();
       const upAth = d.prepare(`INSERT INTO athletes (id, name, group_notes, age, sort_order) VALUES (?,?,?,?,?)
         ON CONFLICT(id) DO UPDATE SET name=excluded.name, group_notes=excluded.group_notes, age=excluded.age, sort_order=excluded.sort_order`);
       (data.athletes || []).forEach((a, i) => {

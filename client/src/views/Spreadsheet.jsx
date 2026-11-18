@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Confirm, Icon, SearchBox, Seg, useApp } from '../components.jsx';
+import { Confirm, FamilySelect, Icon, SearchBox, Seg, useApp } from '../components.jsx';
 import { CATEGORIES, buildTree, matchesSearch } from '../util.js';
 
 /*
@@ -23,6 +23,7 @@ const SKILL_COLS = [
   { key: 'teaching_notes', label: 'Teaching notes', w: 260 },
   { key: 'common_mistakes', label: 'Common mistakes', w: 220 },
   { key: 'review_notes', label: 'Review notes', w: 220 },
+  { key: 'leads_to', label: 'Leads to (next family)', w: 240, family: true },
 ];
 const ATHLETE_COLS = [
   { key: 'id', label: 'ID', w: 70, readOnly: true },
@@ -191,7 +192,10 @@ export default function Spreadsheet() {
                   const v = display(col, row[col.key]);
                   return (
                     <td key={col.key}>
-                      {col.options ? (
+                      {col.family ? (
+                        <FamilySelect className="" value={v} skills={skills} exclude={`${row.category}|${row.subcategory}|${row.family}`}
+                          label={`${col.label} for ${row.id}`} onChange={(val) => commit(row, col, val)} />
+                      ) : col.options ? (
                         <select value={v} onChange={(e) => commit(row, col, e.target.value)} aria-label={col.label}>
                           {!col.options.includes(v) && <option value={v}>{v}</option>}
                           {col.options.map((o) => <option key={o} value={o}>{o}</option>)}

@@ -1,4 +1,4 @@
-import { buildTree, skillLabel } from './util.js';
+import { buildTree, familyName, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, { skillById, comboById, combos }) {
@@ -44,6 +44,7 @@ export function PrintSheet({ data, skillById, showNotes = false }) {
                     <span className={`ps-box ${done.has(`skill:${sk.id}`) ? 'on' : ''}`} />
                     <span>{skillLabel(sk)}</span>
                     {showNotes && sk.teaching_notes && <em className="ps-note">{sk.teaching_notes}</em>}
+                    {sk.leads_to && <em className="ps-note">→ Next skill: {familyName(sk.leads_to)}</em>}
                     {comboByCheckpoint[sk.id]?.map((cb) => <em key={cb.id} className="ps-combo">⚡ Can you do this? Try this combo: {cb.name}</em>)}
                   </li>
                 ))}
