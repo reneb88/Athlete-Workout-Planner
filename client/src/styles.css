@@ -342,6 +342,11 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .sheet .rownum { position: sticky; left: 0; z-index: 1; width: 44px; text-align: center; color: var(--ink-2); font-size: 12px; font-weight: 700; background: var(--line-2) !important; border-left: 4px solid var(--cat); }
 .sheet th.rownum { z-index: 3; background: var(--navy) !important; color: #fff; border-left-color: var(--navy); }
 .sheet .act { width: 48px; text-align: center; }
+.sheet td input { text-overflow: ellipsis; }
+.sheet-wrap.compact .sheet td input, .sheet-wrap.compact .sheet td select { min-height: 34px; padding: 3px 8px; font-size: 13.5px; }
+.sheet-wrap.compact .sheet th { padding: 7px 8px; font-size: 12.5px; }
+.sheet-wrap.compact .icon-btn.sm { width: 32px; height: 32px; }
+.col-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0 16px; margin-bottom: 10px; }
 .sheet-actions { display: flex; gap: 0; padding: 0 4px; }
 .sheet tr.group-start td { border-top: 3px solid color-mix(in srgb, var(--cat) 45%, white); }
 .add-below { margin-top: 10px; }

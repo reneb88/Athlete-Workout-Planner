@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Confirm, FamilySelect, Icon, SearchBox, Seg, useApp } from '../components.jsx';
+import { Check, Confirm, FamilySelect, Icon, Modal, SearchBox, Seg, useApp } from '../components.jsx';
 import { CATEGORIES, buildTree, matchesSearch } from '../util.js';
 
 /*
@@ -8,22 +8,23 @@ import { CATEGORIES, buildTree, matchesSearch } from '../util.js';
  * leave the cell (tap elsewhere, Tab or Enter). New rows are added at the bottom.
  */
 
+// `hide: true` columns start hidden; the coach can show them with the Columns button.
 const SKILL_COLS = [
-  { key: 'id', label: 'ID', w: 70, readOnly: true },
-  { key: 'category', label: 'Category', w: 150, options: CATEGORIES },
-  { key: 'subcategory', label: 'Subcategory', w: 250 },
-  { key: 'family', label: 'Skill family', w: 170 },
-  { key: 'name', label: 'Challenge / progression', w: 250 },
-  { key: 'sequence', label: 'Step', w: 70, num: true, step: true },
-  { key: 'target', label: 'Target', w: 120 },
-  { key: 'level', label: 'Level', w: 80 },
-  { key: 'prerequisites', label: 'Prerequisites (IDs)', w: 160, list: true },
-  { key: 'related', label: 'Related manipulation', w: 190 },
-  { key: 'video_url', label: 'Video URL', w: 220 },
-  { key: 'teaching_notes', label: 'Teaching notes', w: 260 },
-  { key: 'common_mistakes', label: 'Common mistakes', w: 220 },
-  { key: 'review_notes', label: 'Review notes', w: 220 },
-  { key: 'leads_to', label: 'Leads to (next family)', w: 240, family: true },
+  { key: 'id', label: 'ID', w: 62, readOnly: true },
+  { key: 'category', label: 'Category', w: 128, options: CATEGORIES },
+  { key: 'subcategory', label: 'Subcategory', w: 170 },
+  { key: 'family', label: 'Skill family', w: 150 },
+  { key: 'name', label: 'Challenge / progression', w: 220 },
+  { key: 'sequence', label: 'Step', w: 58, num: true, step: true },
+  { key: 'target', label: 'Target', w: 100 },
+  { key: 'video_url', label: 'Video URL', w: 170 },
+  { key: 'level', label: 'Level', w: 70, hide: true },
+  { key: 'prerequisites', label: 'Prerequisites (IDs)', w: 140, list: true, hide: true },
+  { key: 'related', label: 'Related manipulation', w: 170, hide: true },
+  { key: 'teaching_notes', label: 'Teaching notes', w: 240, hide: true },
+  { key: 'common_mistakes', label: 'Common mistakes', w: 200, hide: true },
+  { key: 'review_notes', label: 'Review notes', w: 200, hide: true },
+  { key: 'leads_to', label: 'Leads to (next family)', w: 220, family: true, hide: true },
 ];
 const ATHLETE_COLS = [
   { key: 'id', label: 'ID', w: 70, readOnly: true },
@@ -42,6 +43,10 @@ const COMBO_COLS = [
 
 const display = (col, v) => (col.list ? (v || []).join(', ') : v ?? '');
 
+const PREF_KEY = 'ropeworks.sheetPrefs';
+const readPrefs = () => { try { return JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch { return {}; } };
+const defaultShown = (cols) => cols.filter((c) => !c.hide).map((c) => c.key);
+
 export default function Spreadsheet() {
   const { skills, athletes, combos, run } = useApp();
   const [tab, setTab] = useState('skills');
@@ -49,6 +54,13 @@ export default function Spreadsheet() {
   const [cat, setCat] = useState('all');
   const [del, setDel] = useState(null);
   const [order, setOrder] = useState('progression');
+  const [prefs, setPrefsState] = useState(readPrefs); // { shown: { skills: [...], ... }, compact: bool }
+  const [colsOpen, setColsOpen] = useState(false);
+  const setPrefs = (fn) => setPrefsState((p) => {
+    const n = fn(p);
+    try { localStorage.setItem(PREF_KEY, JSON.stringify(n)); } catch { /* ignore */ }
+    return n;
+  });
   const scroller = useRef(null);
 
   // Every progression (category › subcategory › family) in the order the app shows it,
@@ -91,6 +103,12 @@ export default function Spreadsheet() {
       noun: 'combo',
     },
   }[tab];
+
+  const allCols = cfg.cols;
+  const shownKeys = prefs.shown?.[tab] || defaultShown(allCols);
+  const visibleCols = allCols.filter((c) => shownKeys.includes(c.key));
+  const setShown = (keys) => setPrefs((p) => ({ ...p, shown: { ...(p.shown || {}), [tab]: keys } }));
+  const toggleCol = (key) => setShown(shownKeys.includes(key) ? shownKeys.filter((k) => k !== key) : [...shownKeys, key]);
 
   const total = { skills: skills.length, athletes: athletes.length, combos: combos.length }[tab];
 
@@ -160,6 +178,7 @@ export default function Spreadsheet() {
           { value: 'combos', label: `Combos (${combos.length})` },
         ]} />
         <SearchBox value={q} onChange={setQ} placeholder="Filter rows…" />
+        <button className="btn ghost sm" onClick={() => setColsOpen(true)}>Columns ({visibleCols.length}/{allCols.length})</button>
         {tab === 'skills' && (
           <select className="select" value={cat} onChange={(e) => setCat(e.target.value)} aria-label="Category">
             <option value="all">All categories</option>
@@ -175,12 +194,12 @@ export default function Spreadsheet() {
         {cfg.rows.length !== total && <span className="count">{cfg.rows.length} of {total} rows</span>}
       </div>
 
-      <div className="sheet-wrap card" ref={scroller}>
+      <div className={`sheet-wrap card ${prefs.compact ? 'compact' : ''}`} ref={scroller}>
         <table className="sheet">
           <thead>
             <tr>
               <th className="rownum">#</th>
-              {cfg.cols.map((c) => <th key={c.key} style={{ minWidth: c.w }}>{c.label}</th>)}
+              {visibleCols.map((c) => <th key={c.key} style={{ minWidth: c.w, width: c.w }}>{c.label}</th>)}
               <th className="act" aria-label="Row actions" />
             </tr>
           </thead>
@@ -188,7 +207,7 @@ export default function Spreadsheet() {
             {cfg.rows.map((row, i) => (
               <tr key={row.id} className={`${row.category ? `cat-${row.category.toLowerCase()}` : ''} ${tab === 'skills' && order === 'progression' && groups.byId[row.id]?.first ? 'group-start' : ''}`}>
                 <td className="rownum">{i + 1}</td>
-                {cfg.cols.map((col) => {
+                {visibleCols.map((col) => {
                   const v = display(col, row[col.key]);
                   return (
                     <td key={col.key}>
@@ -204,6 +223,7 @@ export default function Spreadsheet() {
                         <input
                           key={`${row.id}:${col.key}:${v}`}
                           defaultValue={v}
+                          title={String(v)}
                           readOnly={col.readOnly}
                           inputMode={col.num ? 'decimal' : undefined}
                           aria-label={`${col.label} for ${row.id}`}
@@ -234,6 +254,27 @@ export default function Spreadsheet() {
         {cfg.rows.length === 0 && <p className="muted" style={{ padding: 16 }}>No rows match.</p>}
       </div>
       <button className="btn ghost add-below" onClick={addRow}><Icon name="plus" /> Add {cfg.noun}</button>
+
+      {colsOpen && (
+        <Modal title="Choose columns" onClose={() => setColsOpen(false)}
+          footer={<button className="btn primary" onClick={() => setColsOpen(false)}>Done</button>}>
+          <p className="muted small">Hidden columns keep their data — they’re just not shown here. This is remembered on this device.</p>
+          <div className="col-list">
+            {allCols.map((c) => (
+              <label key={c.key} className="opt">
+                <Check checked={shownKeys.includes(c.key)} onChange={() => toggleCol(c.key)} label={c.label} /> {c.label}
+              </label>
+            ))}
+          </div>
+          <div className="btn-row">
+            <button className="btn ghost sm" onClick={() => setShown(defaultShown(allCols))}>Main columns only</button>
+            <button className="btn ghost sm" onClick={() => setShown(allCols.map((c) => c.key))}>Show all</button>
+          </div>
+          <label className="opt" style={{ marginTop: 12 }}>
+            <Check checked={!!prefs.compact} onChange={(v) => setPrefs((p) => ({ ...p, compact: v }))} label="Compact rows" /> Compact rows (smaller text, more rows on screen)
+          </label>
+        </Modal>
+      )}
 
       {del && (
         <Confirm text={`Delete ${del.id} “${del.name}”? This also removes it from athletes’ workouts.`}
