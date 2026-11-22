@@ -117,6 +117,11 @@ export async function parseWorkbook(buffer) {
     athlete_id: ['Athlete ID'], item_type: ['Type'], item_id: ['Item ID'], completed_at: ['Completed at'],
   });
 
+  const noteSheet = sheet('Athlete Notes');
+  const athleteNotes = noteSheet ? readTable(noteSheet, 'Athlete ID', {
+    athlete_id: ['Athlete ID'], kind: ['Type'], title: ['Title'], notes: ['Notes', 'Moves / notes'], video_url: ['Video URL'], done: ['Done'],
+  }).map((n) => ({ ...n, notes: n.notes })) : undefined;
+
   const templates = readTable(sheet('Templates'), 'Template name', {
     name: ['Template name'], description: ['Description'], skill_ids: ['Skill IDs'], combo_ids: ['Combo IDs'], dismissed_ids: ['Dismissed combo IDs'],
   }).map((t) => ({
@@ -131,6 +136,7 @@ export async function parseWorkbook(buffer) {
   return {
     skills, athletes, combos, skillAssignments, comboAssignments, progress,
     templates: hasTemplatesSheet ? templates : undefined,
+    athleteNotes,
   };
 }
 
@@ -242,6 +248,22 @@ export async function buildWorkbook(store) {
       item: comboName[a.combo_id], source: 'suggested', status: 'dismissed' });
   }
   styleHeader(as);
+
+  const nt = wb.addWorksheet('Athlete Notes');
+  nt.columns = [
+    { header: 'Athlete ID', key: 'athlete_id', width: 11 },
+    { header: 'Athlete name', key: 'athlete', width: 24 },
+    { header: 'Type', key: 'kind', width: 10 },
+    { header: 'Title', key: 'title', width: 30 },
+    { header: 'Notes', key: 'notes', width: 60 },
+    { header: 'Video URL', key: 'video_url', width: 30 },
+    { header: 'Done', key: 'done', width: 8 },
+  ];
+  for (const n of store.allNotes()) {
+    const row = nt.addRow({ ...n, athlete: athName[n.athlete_id], done: n.done ? 'yes' : '' });
+    row.getCell('notes').alignment = { wrapText: true, vertical: 'top' };
+  }
+  styleHeader(nt);
 
   const pr = wb.addWorksheet('Progress');
   pr.columns = [

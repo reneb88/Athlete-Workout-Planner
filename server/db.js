@@ -31,6 +31,18 @@ CREATE TABLE IF NOT EXISTS skills (
   sort_order INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS athlete_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'skill',
+  title TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  video_url TEXT NOT NULL DEFAULT '',
+  done INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS assignment_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   athlete_id TEXT NOT NULL REFERENCES athletes(id) ON DELETE CASCADE,
@@ -115,6 +127,12 @@ const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 /** Official required-element categories (competition rules), separate from the teaching categories. */
 export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
 /** Accepts an array or text like "multiples, power" and returns e.g. "Multiples, Power & Gymnastics". */
+/** Coach-note groups on an athlete's profile. */
+export const noteKind = (v) => {
+  const t = String(v || '').toLowerCase();
+  return /routine/.test(t) ? 'routine' : /combo/.test(t) ? 'combo' : 'skill';
+};
+
 /** How an athlete's page looks: '' = automatic by age, 'checklist', or 'videos' (video board). */
 export const viewStyle = (v) => (['checklist', 'videos'].includes(String(v || '').toLowerCase()) ? String(v).toLowerCase() : '');
 
@@ -393,6 +411,47 @@ class Store {
     return this.getAthlete(id);
   }
 
+  // ---------- Coach notes per athlete: working skills, working combos, routine ----------
+  listNotes(athleteId) {
+    return this.db.prepare('SELECT * FROM athlete_notes WHERE athlete_id = ? ORDER BY sort_order, id').all(athleteId)
+      .map((n) => ({ ...n, done: !!n.done }));
+  }
+
+  saveNote(athleteId, input, id = null) {
+    if (!this.getAthlete(athleteId)) throw httpError(404, 'Athlete not found');
+    const kind = noteKind(input.kind);
+    const title = str(input.title);
+    const notes = String(input.notes ?? '').replace(/\r\n/g, '\n').trim();
+    if (!title && !notes) throw httpError(400, 'Give the note a title or some notes');
+    if (id) {
+      const cur = this.db.prepare('SELECT * FROM athlete_notes WHERE id = ? AND athlete_id = ?').get(id, athleteId);
+      if (!cur) throw httpError(404, 'Note not found');
+      this.db.prepare("UPDATE athlete_notes SET kind = ?, title = ?, notes = ?, video_url = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(kind, title, notes, str(input.video_url ?? cur.video_url), input.done === undefined ? cur.done : (input.done ? 1 : 0), id);
+    } else {
+      const order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM athlete_notes WHERE athlete_id = ?').get(athleteId).m ?? 0) + 1;
+      id = Number(this.db.prepare('INSERT INTO athlete_notes (athlete_id, kind, title, notes, video_url, done, sort_order) VALUES (?,?,?,?,?,?,?)')
+        .run(athleteId, kind, title, notes, str(input.video_url), input.done ? 1 : 0, order).lastInsertRowid);
+    }
+    return this.listNotes(athleteId);
+  }
+
+  setNoteDone(id, done) {
+    const n = this.db.prepare('SELECT athlete_id FROM athlete_notes WHERE id = ?').get(id);
+    if (!n) throw httpError(404, 'Note not found');
+    this.db.prepare("UPDATE athlete_notes SET done = ?, updated_at = datetime('now') WHERE id = ?").run(done ? 1 : 0, id);
+    return this.listNotes(n.athlete_id);
+  }
+
+  deleteNote(id) {
+    const n = this.db.prepare('SELECT athlete_id FROM athlete_notes WHERE id = ?').get(id);
+    if (!n) throw httpError(404, 'Note not found');
+    this.db.prepare('DELETE FROM athlete_notes WHERE id = ?').run(id);
+    return this.listNotes(n.athlete_id);
+  }
+
+  allNotes() { return this.db.prepare('SELECT * FROM athlete_notes ORDER BY athlete_id, sort_order, id').all(); }
+
   /** Remember when this athlete's checklist was last printed / made into a PDF. */
   markPrinted(id) {
     if (!this.getAthlete(id)) throw httpError(404, 'Athlete not found');
@@ -485,6 +544,7 @@ class Store {
       combos: d.prepare('SELECT combo_id, source FROM combo_assignments WHERE athlete_id = ?').all(athleteId)
         .map((r) => ({ id: r.combo_id, source: r.source })),
       last_printed_at: this.getAthlete(athleteId).last_printed_at || '',
+      notes: this.listNotes(athleteId),
       history: d.prepare('SELECT item_type, item_id, item_name, action, at FROM assignment_log WHERE athlete_id = ? ORDER BY id DESC LIMIT 300').all(athleteId),
       dismissed_ids: d.prepare('SELECT combo_id FROM combo_dismissals WHERE athlete_id = ?').all(athleteId).map((r) => r.combo_id),
       progress: d.prepare('SELECT item_type, item_id, completed_at FROM progress WHERE athlete_id = ?').all(athleteId),
@@ -696,6 +756,15 @@ class Store {
         d.prepare('INSERT OR IGNORE INTO progress (athlete_id, item_type, item_id, completed_at) VALUES (?, ?, ?, ?)')
           .run(p.athlete_id, p.item_type, str(p.item_id), str(p.completed_at) || new Date().toISOString());
         counts.progress++;
+      }
+      if (data.athleteNotes) {
+        if (replace) d.exec('DELETE FROM athlete_notes');
+        for (const n of data.athleteNotes) {
+          if (!has('athletes', n.athlete_id) || !(str(n.title) || str(n.notes))) continue;
+          // same athlete + type + title = same note (update it rather than adding a copy)
+          const ex = d.prepare('SELECT id FROM athlete_notes WHERE athlete_id = ? AND kind = ? AND title = ?').get(n.athlete_id, noteKind(n.kind), str(n.title));
+          this.saveNote(n.athlete_id, { ...n, done: /^(yes|true|1|done)$/i.test(str(n.done)) }, ex?.id || null);
+        }
       }
       for (const t of data.templates || []) {
         if (!str(t.name)) continue;

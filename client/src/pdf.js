@@ -103,7 +103,7 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
   };
 
   sheets.forEach((sheet, idx) => {
-    const { skills, combos, done, comboByCheckpoint, all = skills, videoBoard = false, fresh, onlyNew } = sheet;
+    const { skills, combos, done, comboByCheckpoint, all = skills, videoBoard = false, fresh, onlyNew, notes = [] } = sheet;
     noBox = videoBoard;
     athlete = onlyNew ? { ...sheet.athlete, addon: true } : sheet.athlete;
     if (idx > 0) doc.addPage();
@@ -143,6 +143,28 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
         const after = (c.after_combos || []).filter((id) => names[id]).map((id) => names[id]);
         const note = [after.length ? `Ready after: ${after.join(', ')}` : '', showNotes ? c.notes : ''].filter(Boolean).join(' · ');
         item(`${c.name} (${c.kind})`, { done: done.has(`combo:${c.id}`), url: c.video_url ? shareUrl(c.video_url) : '', note });
+      }
+    }
+    // Coach notes: working skills, combos and the routine written in order
+    const active = onlyNew ? [] : notes.filter((n) => !n.done);
+    if (active.length) {
+      catBand('Working on', NAVY);
+      for (const [k, label] of [['skill', 'Working skills'], ['combo', 'Working combos'], ['routine', 'Routine']]) {
+        for (const n of active.filter((x) => x.kind === k)) {
+          room(30);
+          text(`${label}: ${n.title || ''}`, x0(), y + 9, { size: FS.fam, style: 'bold', color: NAVY, maxW: colW - 40 });
+          if (n.video_url) link('video', shareUrl(n.video_url), x0() + colW, y + 9);
+          y += 14;
+          const lines = String(n.notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
+          lines.forEach((l, i) => {
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(FS.item);
+            const wrapped = doc.splitTextToSize(k === 'skill' ? l : `${i + 1}. ${l}`, colW - 6);
+            room(wrapped.length * LH + 2);
+            text(wrapped.join('\n'), x0() + 4, y + 8, { color: [20, 24, 32] });
+            y += wrapped.length * LH + 1.5;
+          });
+          y += 6;
+        }
       }
     }
   });

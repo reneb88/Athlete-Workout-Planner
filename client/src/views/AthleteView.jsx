@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Disclosure, Empty, GifThumb, Icon, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import { athleteView, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
@@ -83,7 +83,7 @@ export default function AthleteView({ athleteId }) {
             </>}
             <button className="btn sm" onClick={() => { window.print(); markPrinted(); }}><Icon name="print" size={18} /> Print</button>
             <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
-            <button className="btn sm" onClick={async () => { await exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board, fresh }); markPrinted(); }}><Icon name="file" size={18} /> PDF</button>
+            <button className="btn sm" onClick={async () => { await exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board, fresh, notes: w.notes }); markPrinted(); }}><Icon name="file" size={18} /> PDF</button>
             <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
           </div>
         </div>
@@ -191,8 +191,9 @@ export default function AthleteView({ athleteId }) {
         )}
       </div>}
 
+      <CoachNotes athlete={athlete} notes={w.notes || []} onChange={(notes) => setW((x) => ({ ...x, notes }))} onPlay={setVideo} />
       <History w={w} lastPrinted={w.last_printed_at} />
-      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, fresh }} skillById={skillById} videoBoard={board} />
+      <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, fresh, notes: w.notes }} skillById={skillById} videoBoard={board} />
       {video && <VideoModal url={video.url} title={video.title} onClose={() => setVideo(null)} />}
     </div>
   );
@@ -324,5 +325,117 @@ function TypeSection({ name, count, cls, children }) {
       </button>
       {open && <div className="type-body">{children}</div>}
     </section>
+  );
+}
+
+const NOTE_GROUPS = [
+  { kind: 'skill', title: 'Working skills', hint: 'A new trick you’re working on, with coaching notes.' },
+  { kind: 'combo', title: 'Working combos', hint: 'A combination — one move per line, in order.' },
+  { kind: 'routine', title: 'Routine', hint: 'Their routine written out in order — one element per line.' },
+];
+const linesOf = (t) => String(t || '').split('\n').map((x) => x.trim()).filter(Boolean);
+
+/** Coach notes on an athlete's profile: working skills, working combos and their routine (in order). */
+function CoachNotes({ athlete, notes, onChange, onPlay }) {
+  const { run } = useApp();
+  const [editing, setEditing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [showDone, setShowDone] = useState({});
+  const save = async (note) => {
+    const list = await run(() => api.saveNote(athlete.id, note, note.id), note.id ? 'Saved' : 'Added');
+    onChange(list);
+  };
+  return (
+    <section className="card coach-notes no-print">
+      <div className="cn-head">
+        <h2>Coach notes</h2>
+        <small className="muted">What {athlete.name.split(' ')[0]} is working on right now</small>
+      </div>
+      {NOTE_GROUPS.map((g) => {
+        const items = notes.filter((n) => n.kind === g.kind);
+        const active = items.filter((n) => !n.done);
+        const doneItems = items.filter((n) => n.done);
+        return (
+          <div key={g.kind} className={`cn-group cn-${g.kind}`}>
+            <div className="cn-group-head">
+              <h3>{g.title} {active.length > 0 && <span className="count">{active.length}</span>}</h3>
+              <button className="btn sm" onClick={() => setEditing({ kind: g.kind, title: '', notes: '', video_url: '' })}><Icon name="plus" size={16} /> Add</button>
+            </div>
+            {active.length === 0 && <p className="muted small">{g.hint}</p>}
+            {active.map((n) => <NoteCard key={n.id} n={n} onEdit={() => setEditing(n)} onDelete={() => setDeleting(n)} onPlay={onPlay}
+              onDone={async (v) => onChange(await run(() => api.noteDone(n.id, v), v ? 'Marked done' : 'Back to working on'))} />)}
+            {doneItems.length > 0 && (
+              <button className="btn ghost sm" onClick={() => setShowDone((x) => ({ ...x, [g.kind]: !x[g.kind] }))}>
+                {showDone[g.kind] ? 'Hide' : 'Show'} done ({doneItems.length})
+              </button>
+            )}
+            {showDone[g.kind] && doneItems.map((n) => <NoteCard key={n.id} n={n} onEdit={() => setEditing(n)} onDelete={() => setDeleting(n)} onPlay={onPlay}
+              onDone={async (v) => onChange(await run(() => api.noteDone(n.id, v)))} />)}
+          </div>
+        );
+      })}
+      {editing && <NoteEditor note={editing} onSave={async (n) => { await save(n); setEditing(null); }} onClose={() => setEditing(null)} />}
+      {deleting && <Confirm text={`Delete “${deleting.title || 'this note'}”?`}
+        onConfirm={async () => onChange(await run(() => api.deleteNote(deleting.id), 'Deleted'))} onClose={() => setDeleting(null)} />}
+    </section>
+  );
+}
+
+function NoteCard({ n, onEdit, onDelete, onDone, onPlay }) {
+  const lines = linesOf(n.notes);
+  return (
+    <article className={`cn-card ${n.done ? 'done' : ''}`}>
+      <div className="cn-card-head">
+        <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />
+        <b className="grow">{n.title || (n.kind === 'routine' ? 'Routine' : 'Untitled')}</b>
+        {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
+        <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>
+        <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>
+      </div>
+      {n.kind === 'skill'
+        ? (n.notes && <p className="cn-text">{n.notes}</p>)
+        : lines.length > 0 && <ol className="cn-moves">{lines.map((l, i) => <li key={i}>{l}</li>)}</ol>}
+      <small className="muted">Updated {fmtDay(n.updated_at)}</small>
+    </article>
+  );
+}
+
+function NoteEditor({ note, onSave, onClose }) {
+  const { skills } = useApp();
+  const [f, setF] = useState({ ...note });
+  const [pick, setPick] = useState('');
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
+  const ordered = f.kind !== 'skill';
+  const options = useMemo(() => [...new Set(skills.map((s) => (s.name.toLowerCase() === s.family.toLowerCase() ? skillLabel(s) : `${s.family} – ${skillLabel(s)}`)))].sort(), [skills]);
+  const addLine = () => {
+    if (!pick.trim()) return;
+    setF((x) => ({ ...x, notes: (x.notes ? x.notes.replace(/\s+$/, '') + '\n' : '') + pick.trim() }));
+    setPick('');
+  };
+  return (
+    <Modal title={note.id ? 'Edit note' : 'New note'} onClose={onClose} wide
+      footer={<><button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!f.title.trim() && !f.notes.trim()} onClick={() => onSave(f)}>Save</button></>}>
+      <Field label="Type">
+        <Seg value={f.kind} onChange={set('kind')} options={NOTE_GROUPS.map((g) => ({ value: g.kind, label: g.title.replace('Working ', '') }))} />
+      </Field>
+      <Field label="Title"><input value={f.title} onChange={set('title')} autoFocus
+        placeholder={f.kind === 'routine' ? 'e.g. Single rope freestyle 2027' : f.kind === 'combo' ? 'e.g. Toad combo' : 'e.g. Triple under'} /></Field>
+      <Field label={ordered ? 'Moves in order — one per line' : 'Notes'} hint={ordered ? 'They’ll show numbered 1, 2, 3… on the athlete’s page and printout.' : 'Coaching cues, what to focus on, goals…'}>
+        <textarea rows={ordered ? 10 : 5} value={f.notes} onChange={set('notes')}
+          placeholder={ordered ? 'Toad\nCross open\nSide swing triple\n…' : 'Keep elbows in, land on the balls of the feet…'} />
+      </Field>
+      {ordered && (
+        <Field group label="Add a skill from the library">
+          <div className="gif-field">
+            <input list="note-skill-list" value={pick} onChange={(e) => setPick(e.target.value)} placeholder="Start typing a skill…"
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLine(); } }} />
+            <button type="button" className="btn sm" disabled={!pick.trim()} onClick={addLine}><Icon name="plus" size={16} /> Add as next move</button>
+          </div>
+          <datalist id="note-skill-list">{options.map((o) => <option key={o} value={o} />)}</datalist>
+        </Field>
+      )}
+      <Field label="Video link (optional)"><input type="url" inputMode="url" value={f.video_url || ''} onChange={set('video_url')} placeholder="https://vimeo.com/…" /></Field>
+    </Modal>
   );
 }

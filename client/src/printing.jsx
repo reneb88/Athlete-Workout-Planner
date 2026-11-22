@@ -10,7 +10,7 @@ export function sheetData(athlete, w, ctx) {
   combos.forEach((c) => { if (active.has(c.id)) c.checkpoints.forEach((s) => (comboByCheckpoint[s] ||= []).push(c)); });
   const done = new Set(w.progress.map((p) => `${p.item_type}:${p.item_id}`));
   return { athlete, skills, combos: assigned, done, comboByCheckpoint, all: ctx.skills, videoBoard: athleteView(athlete, ctx.settings) === 'videos',
-    fresh: newSincePrint(w), lastPrinted: w.last_printed_at || '' };
+    fresh: newSincePrint(w), lastPrinted: w.last_printed_at || '', notes: w.notes || [] };
 }
 
 /** Apply print options (e.g. leave out what the athlete already completed). */
@@ -72,6 +72,28 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
                 {showNotes && c.notes && <em className="ps-note">{c.notes}</em>}</li>
             ))}
           </ul>
+        </section>
+      )}
+      {(data.notes || []).filter((n) => !n.done).length > 0 && (
+        <section className="ps-cat ps-notes">
+          <h2>Working on</h2>
+          {[['skill', 'Working skills'], ['combo', 'Working combos'], ['routine', 'Routine']].map(([k, label]) => {
+            const list = data.notes.filter((n) => n.kind === k && !n.done);
+            return list.length > 0 && (
+              <div key={k} className="ps-fam">
+                <h3>{label}</h3>
+                {list.map((n) => {
+                  const lines = String(n.notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
+                  return (
+                    <div key={n.id} className="ps-note-block">
+                      <b>{n.title}</b>{n.video_url && <a className="ps-link" href={shareUrl(n.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
+                      {k === 'skill' ? <p>{n.notes}</p> : <ol>{lines.map((l, i) => <li key={i}>{l}</li>)}</ol>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </section>
       )}
     </div>

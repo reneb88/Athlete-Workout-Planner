@@ -263,3 +263,23 @@ test('assignment history, kept dates and last printed', async () => {
   assert.deepEqual(h, ['added:C002', 'added:S110', 'added:S111', 'added:S112', 'removed:S111'].sort());
   assert.ok(w.history.find((x) => x.item_id === 'S112').item_name.startsWith('Toad: Perfect exit'));
 });
+
+test('coach notes per athlete: working skills, combos, routine', async () => {
+  const s = await fresh();
+  let n = s.saveNote('A01', { kind: 'routine', title: 'Comp routine 2027', notes: 'Toad\nCross open\nTriple under' });
+  n = s.saveNote('A01', { kind: 'Working combo', title: 'Arms & legs', notes: 'Cross\nToad' });
+  assert.equal(n.length, 2);
+  assert.equal(n[1].kind, 'combo');
+  n = s.setNoteDone(n[1].id, true);
+  assert.equal(n[1].done, true);
+  assert.equal(s.getWorkout('A01').notes.length, 2);
+  assert.throws(() => s.saveNote('A01', { kind: 'skill' }), /title or some notes/);
+  const b = openDb(':memory:');
+  const buf = await buildWorkbook(s);
+  b.importData(await parseWorkbook(buf), { replace: true });
+  b.importData(await parseWorkbook(buf)); // merge again: no duplicates
+  const bn = b.getWorkout('A01').notes;
+  assert.equal(bn.length, 2);
+  assert.equal(bn.find((x) => x.kind === 'routine').notes, 'Toad\nCross open\nTriple under');
+  assert.equal(bn.find((x) => x.kind === 'combo').done, true);
+});

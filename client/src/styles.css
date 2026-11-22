@@ -156,6 +156,22 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .ps-new { color: #c2410c; font-size: .75em; letter-spacing: .05em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ps-addon { margin: 6px 0 0; font-weight: 700; color: #c2410c; }
 .history { margin-top: 18px; }
+.coach-notes { margin-top: 18px; border-top: 5px solid var(--navy); }
+.cn-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.cn-group { padding: 10px 0; border-top: 1px solid var(--line-2); }
+.cn-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.cn-group-head h3 { font-size: 17px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); }
+.cn-card { background: #fafbfd; border: 1px solid var(--line-2); border-left: 4px solid var(--orange); border-radius: 12px; padding: 8px 12px 10px; margin-bottom: 8px; }
+.cn-routine .cn-card { border-left-color: #6366f1; }
+.cn-skill .cn-card { border-left-color: var(--blue); }
+.cn-card.done { opacity: .6; }
+.cn-card-head { display: flex; align-items: center; gap: 10px; }
+.cn-text { white-space: pre-wrap; margin: 6px 0; }
+.cn-moves { margin: 6px 0 6px 6px; padding-left: 26px; font-weight: 600; }
+.cn-moves li { padding: 2px 0; }
+.ps-note-block { margin: 4px 0 8px; break-inside: avoid; }
+.ps-note-block p { margin: 2px 0; white-space: pre-wrap; }
+.ps-note-block ol { margin: 2px 0; padding-left: 20px; }
 .type-section { margin-bottom: 14px; }
 .type-section.cat-combos { --cat: var(--orange); }
 .type-head { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; padding: 8px 4px; cursor: pointer; text-align: left; border-bottom: 3px solid var(--cat); margin-bottom: 10px; }
