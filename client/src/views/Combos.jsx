@@ -48,7 +48,9 @@ export default function Combos() {
                 ))}
               </div>
             ) : <p className="muted small">Standalone — assign directly in the Workout Designer.</p>}
-            {c.notes && <p className="notes">{c.notes}</p>}
+            {c.notes && (c.notes.includes('\n')
+              ? <ol className="cn-moves">{c.notes.split('\n').map((l) => l.trim()).filter(Boolean).map((l, i) => <li key={i}>{l}</li>)}</ol>
+              : <p className="notes">{c.notes}</p>)}
             <div className="row-actions">
               {c.video_url && <button className="btn sm" onClick={() => setVideo(c)}><Icon name="play" size={18} /> Video</button>}
               <button className="btn ghost sm" onClick={() => setEditing(c)}><Icon name="edit" size={18} /> Edit</button>
@@ -105,7 +107,7 @@ function ComboEditor({ combo, onClose }) {
           {combos.filter((c) => c.id !== combo.id && !f.after_combos.includes(c.id)).map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
         </select>
       </Field>
-      <Field label="Notes / choreography"><textarea rows={5} value={f.notes} onChange={set('notes')} /></Field>
+      <Field label="Moves / choreography" hint="One move per line shows as a numbered list."><textarea rows={6} value={f.notes} onChange={set('notes')} /></Field>
     </Modal>
   );
 }

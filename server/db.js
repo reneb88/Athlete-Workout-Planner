@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS athlete_notes (
   title TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   video_url TEXT NOT NULL DEFAULT '',
+  combo_id TEXT NOT NULL DEFAULT '',
   done INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -165,7 +166,7 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at'], ['athlete_notes', 'combo_id']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
@@ -426,12 +427,12 @@ class Store {
     if (id) {
       const cur = this.db.prepare('SELECT * FROM athlete_notes WHERE id = ? AND athlete_id = ?').get(id, athleteId);
       if (!cur) throw httpError(404, 'Note not found');
-      this.db.prepare("UPDATE athlete_notes SET kind = ?, title = ?, notes = ?, video_url = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(kind, title, notes, str(input.video_url ?? cur.video_url), input.done === undefined ? cur.done : (input.done ? 1 : 0), id);
+      this.db.prepare("UPDATE athlete_notes SET kind = ?, title = ?, notes = ?, video_url = ?, combo_id = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(kind, title, notes, str(input.video_url ?? cur.video_url), str(input.combo_id ?? cur.combo_id), input.done === undefined ? cur.done : (input.done ? 1 : 0), id);
     } else {
       const order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM athlete_notes WHERE athlete_id = ?').get(athleteId).m ?? 0) + 1;
-      id = Number(this.db.prepare('INSERT INTO athlete_notes (athlete_id, kind, title, notes, video_url, done, sort_order) VALUES (?,?,?,?,?,?,?)')
-        .run(athleteId, kind, title, notes, str(input.video_url), input.done ? 1 : 0, order).lastInsertRowid);
+      id = Number(this.db.prepare('INSERT INTO athlete_notes (athlete_id, kind, title, notes, video_url, combo_id, done, sort_order) VALUES (?,?,?,?,?,?,?,?)')
+        .run(athleteId, kind, title, notes, str(input.video_url), str(input.combo_id), input.done ? 1 : 0, order).lastInsertRowid);
     }
     return this.listNotes(athleteId);
   }

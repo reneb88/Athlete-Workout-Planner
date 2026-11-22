@@ -283,3 +283,12 @@ test('coach notes per athlete: working skills, combos, routine', async () => {
   assert.equal(bn.find((x) => x.kind === 'routine').notes, 'Toad\nCross open\nTriple under');
   assert.equal(bn.find((x) => x.kind === 'combo').done, true);
 });
+
+test('a note can be linked to a Combo Library combo', async () => {
+  const s = await fresh();
+  const c = s.createCombo({ name: 'Toad into cross', kind: 'combo', notes: 'Toad\nCross open' });
+  const n = s.saveNote('A01', { kind: 'combo', title: 'Toad into cross', notes: 'Toad\nCross open', combo_id: c.id });
+  assert.equal(n[0].combo_id, c.id);
+  s.saveNote('A01', { ...n[0], notes: 'Toad\nToad 3x\nCross open' }, n[0].id);
+  assert.equal(s.listNotes('A01')[0].combo_id, c.id);
+});

@@ -341,7 +341,13 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [showDone, setShowDone] = useState({});
-  const save = async (note) => {
+  const save = async ({ toLibrary, updateLibrary, ...note }) => {
+    // Combos and routines can live in the Combo Library too, so they can be given to other athletes later.
+    if (note.kind !== 'skill') {
+      const lib = { name: note.title.trim() || 'Untitled', kind: note.kind === 'routine' ? 'routine' : 'combo', notes: note.notes, video_url: note.video_url || '' };
+      if (!note.combo_id && toLibrary) note.combo_id = (await run(() => api.createCombo(lib), `“${lib.name}” added to the Combo Library`)).id;
+      else if (note.combo_id && updateLibrary) await run(() => api.updateCombo(note.combo_id, lib), 'Combo Library updated too');
+    }
     const list = await run(() => api.saveNote(athlete.id, note, note.id), note.id ? 'Saved' : 'Added');
     onChange(list);
   };
@@ -387,7 +393,7 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay }) {
     <article className={`cn-card ${n.done ? 'done' : ''}`}>
       <div className="cn-card-head">
         <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />
-        <b className="grow">{n.title || (n.kind === 'routine' ? 'Routine' : 'Untitled')}</b>
+        <b className="grow">{n.title || (n.kind === 'routine' ? 'Routine' : 'Untitled')}{n.combo_id && <span className="tag lib-tag" title="Saved in the Combo Library">In Combo Library</span>}</b>
         {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
         <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>
         <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>
@@ -401,8 +407,15 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay }) {
 }
 
 function NoteEditor({ note, onSave, onClose }) {
-  const { skills } = useApp();
-  const [f, setF] = useState({ ...note });
+  const { skills, combos, comboById } = useApp();
+  const [f, setF] = useState({ combo_id: '', ...note, toLibrary: !note.combo_id, updateLibrary: false });
+  const linked = f.combo_id ? comboById[f.combo_id] : null;
+  const nameClash = !f.combo_id && f.toLibrary && f.title.trim() && combos.find((c) => c.name.trim().toLowerCase() === f.title.trim().toLowerCase());
+  const fromLibrary = (id) => {
+    const c = comboById[id];
+    if (!c) return;
+    setF((x) => ({ ...x, kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', video_url: c.video_url || x.video_url, combo_id: c.id, toLibrary: false, updateLibrary: false }));
+  };
   const [pick, setPick] = useState('');
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   const ordered = f.kind !== 'skill';
@@ -417,8 +430,16 @@ function NoteEditor({ note, onSave, onClose }) {
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button>
         <button className="btn primary" disabled={!f.title.trim() && !f.notes.trim()} onClick={() => onSave(f)}>Save</button></>}>
       <Field label="Type">
-        <Seg value={f.kind} onChange={set('kind')} options={NOTE_GROUPS.map((g) => ({ value: g.kind, label: g.title.replace('Working ', '') }))} />
+        <Seg value={f.kind} onChange={set('kind')} options={[{ value: 'skill', label: 'Working skill' }, { value: 'combo', label: 'Combo' }, { value: 'routine', label: 'Routine' }]} />
       </Field>
+      {ordered && !note.id && combos.length > 0 && (
+        <Field label="Start from the Combo Library (optional)" hint="Fills in the title, moves and video — then change anything for this athlete.">
+          <select className="select block" value={linked ? f.combo_id : ''} onChange={(e) => fromLibrary(e.target.value)}>
+            <option value="">— write a new one —</option>
+            {combos.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Title"><input value={f.title} onChange={set('title')} autoFocus
         placeholder={f.kind === 'routine' ? 'e.g. Single rope freestyle 2027' : f.kind === 'combo' ? 'e.g. Toad combo' : 'e.g. Triple under'} /></Field>
       <Field label={ordered ? 'Moves in order — one per line' : 'Notes'} hint={ordered ? 'They’ll show numbered 1, 2, 3… on the athlete’s page and printout.' : 'Coaching cues, what to focus on, goals…'}>
@@ -436,6 +457,19 @@ function NoteEditor({ note, onSave, onClose }) {
         </Field>
       )}
       <Field label="Video link (optional)"><input type="url" inputMode="url" value={f.video_url || ''} onChange={set('video_url')} placeholder="https://vimeo.com/…" /></Field>
+      {ordered && !linked && (
+        <label className="opt">
+          <input type="checkbox" checked={f.toLibrary} onChange={(e) => setF((x) => ({ ...x, toLibrary: e.target.checked }))} />
+          Also save to the Combo Library, so I can give it to other athletes later
+        </label>
+      )}
+      {nameClash && <p className="banner warn small">The Combo Library already has “{nameClash.name}”. Pick it under “Start from the Combo Library”, or give this one a different title.</p>}
+      {ordered && linked && (
+        <label className="opt">
+          <input type="checkbox" checked={f.updateLibrary} onChange={(e) => setF((x) => ({ ...x, updateLibrary: e.target.checked }))} />
+          Also update “{linked.name}” in the Combo Library with these changes
+        </label>
+      )}
     </Modal>
   );
 }
