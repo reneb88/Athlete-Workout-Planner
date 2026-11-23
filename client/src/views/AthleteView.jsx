@@ -400,7 +400,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
       <div className="cn-head">
         <h2>Coach notes</h2>
         <small className="muted">What {athlete.name.split(' ')[0]} is working on right now</small>
-        <button className="btn primary sm push" onClick={() => setPicking(true)}><Icon name="plus" size={16} /> Add from library</button>
+        <button className="btn primary sm push" onClick={() => setPicking('skills')}><Icon name="plus" size={16} /> Add from library</button>
       </div>
       {NOTE_GROUPS.map((g) => {
         const items = notes.filter((n) => n.kind === g.kind);
@@ -410,7 +410,14 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
           <div key={g.kind} className={`cn-group cn-${g.kind}`}>
             <div className="cn-group-head">
               <h3>{g.title} {active.length > 0 && <span className="count">{active.length}</span>}</h3>
-              <button className="btn sm" onClick={() => setEditing({ kind: g.kind, title: '', notes: '', video_url: '' })}><Icon name="plus" size={16} /> Add</button>
+              {g.kind === 'skill' ? (
+                <span className="btn-group">
+                  <button className="btn ghost sm" onClick={() => setEditing({ kind: 'skill', title: '', notes: '', video_url: '' })}>Write one</button>
+                  <button className="btn sm" onClick={() => setPicking('skills')}><Icon name="plus" size={16} /> Add skills</button>
+                </span>
+              ) : (
+                <button className="btn sm" onClick={() => setEditing({ kind: g.kind, title: '', notes: '', video_url: '' })}><Icon name="plus" size={16} /> Add</button>
+              )}
             </div>
             {active.length === 0 && <p className="muted small">{g.hint}</p>}
             {active.map((n) => <NoteCard key={n.id} n={n} onEdit={() => setEditing(n)} onDelete={() => setDeleting(n)} onPlay={onPlay}
@@ -425,7 +432,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
           </div>
         );
       })}
-      {picking && <LibraryPicker notes={notes} onAdd={addMany} onClose={() => setPicking(false)} />}
+      {picking && <LibraryPicker notes={notes} initialTab={picking} onAdd={addMany} onClose={() => setPicking(false)} />}
       {editing && <NoteEditor note={editing} onSave={async (n) => { await save(n); setEditing(null); }} onClose={() => setEditing(null)} />}
       {deleting && <Confirm text={`Delete “${deleting.title || 'this note'}”?`}
         onConfirm={async () => onChange(await run(() => api.deleteNote(deleting.id), 'Deleted'))} onClose={() => setDeleting(null)} />}
@@ -435,6 +442,21 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
 
 function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
   const lines = linesOf(n.notes);
+  if (n.kind === 'skill') {
+    // Working skills: a compact focus list, one line each
+    return (
+      <div className={`cn-skill-row ${n.done ? 'done' : ''}`}>
+        {!readOnly && <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />}
+        <div className="grow">
+          <b>{n.title}</b>
+          {n.notes && <div className="cn-skill-note">{n.notes}</div>}
+        </div>
+        {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
+        {!readOnly && <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>}
+        {!readOnly && <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>}
+      </div>
+    );
+  }
   return (
     <article className={`cn-card ${n.done ? 'done' : ''}`}>
       <div className="cn-card-head">
@@ -510,9 +532,9 @@ function NoteEditor({ note, onSave, onClose }) {
 }
 
 /** Pick several skills, combos and routines from the library at once. */
-function LibraryPicker({ notes, onAdd, onClose }) {
+function LibraryPicker({ notes, onAdd, onClose, initialTab = 'skills' }) {
   const { combos, skillById, comboById } = useApp();
-  const [tab, setTab] = useState('skills');
+  const [tab, setTab] = useState(initialTab);
   const [skillIds, setSkillIds] = useState([]);
   const [comboIds, setComboIds] = useState([]);
   const [busy, setBusy] = useState(false);
