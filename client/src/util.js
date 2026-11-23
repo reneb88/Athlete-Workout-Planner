@@ -313,3 +313,22 @@ export function noteVideos(n, skillById = {}, comboById = {}) {
   // The library video comes first — unless it's one of the coach's own (then keep the coach's label).
   return demo && !own.some((v) => v.url === demo) ? [{ label: n.skill_id ? 'Demo' : 'Video', url: demo, demo: true }, ...own] : own;
 }
+
+/** Order for showing skills by type: Manipulation (footwork, leg overs…), Power, Multiples. */
+export const TYPE_ORDER = ['Manipulation', 'Power', 'Multiples'];
+export const typeRank = (cat) => { const i = TYPE_ORDER.indexOf(cat); return i < 0 ? 99 : i; };
+/** Group working-skill notes by "Category · Subcategory" in TYPE_ORDER, then library order. */
+export function groupByType(notes, skillById, homes) {
+  const rows = notes.map((n) => {
+    const s = skillById[n.skill_id];
+    const h = s ? homes.get(famId(s)) : null;
+    return { n, cat: h?.category || 'Other', sub: h?.subcategory || '', first: h?.first ?? 1e9, seq: s?.sequence ?? 0 };
+  }).sort((a, b) => typeRank(a.cat) - typeRank(b.cat) || a.first - b.first || a.seq - b.seq);
+  const out = [];
+  for (const r of rows) {
+    const head = r.cat === 'Other' ? 'Other' : `${r.cat}${r.sub ? ' · ' + r.sub : ''}`;
+    if (!out.length || out[out.length - 1][0] !== head) out.push([head, []]);
+    out[out.length - 1][1].push(r.n);
+  }
+  return out;
+}

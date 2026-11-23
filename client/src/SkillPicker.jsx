@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Icon, useApp } from './components.jsx';
-import { familyHomes, famId, matchesSearch, skillLabel } from './util.js';
+import { familyHomes, famId, matchesSearch, skillLabel, typeRank } from './util.js';
 
 /**
  * Multi-select skill picker: chips for what's selected, then a search whose results have tick boxes
@@ -14,7 +14,8 @@ export default function SkillPicker({ value, onChange, exclude, placeholder = 'S
   const groups = useMemo(() => {
     if (!q.trim()) return [];
     const hits = skills.filter((s) => s.id !== exclude && matchesSearch(s, q))
-      .sort((a, b) => (homes.get(famId(a))?.first ?? 0) - (homes.get(famId(b))?.first ?? 0) || a.sequence - b.sequence);
+      .sort((a, b) => typeRank(homes.get(famId(a))?.category) - typeRank(homes.get(famId(b))?.category)
+        || (homes.get(famId(a))?.first ?? 0) - (homes.get(famId(b))?.first ?? 0) || a.sequence - b.sequence);
     const m = new Map();
     for (const s of hits.slice(0, 80)) {
       const k = famId(s);

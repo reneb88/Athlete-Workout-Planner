@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { athleteView, noteVideos, comboMove, movesOf, parseMove, skillMove, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
+import { athleteView, familyHomes, groupByType, noteVideos, comboMove, movesOf, parseMove, skillMove, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -347,7 +347,8 @@ const linesOf = (t) => String(t || '').split('\n').map((x) => x.trim()).filter(B
 
 /** Coach notes on an athlete's profile: working skills, working combos and their routine (in order). */
 function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
-  const { run } = useApp();
+  const { run, skills = [], skillById = {} } = useApp();
+  const homes = useMemo(() => familyHomes(skills), [skills]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [showDone, setShowDone] = useState({});
@@ -388,7 +389,12 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
           return items.length > 0 && (
             <div key={g.kind} className={`cn-group cn-${g.kind}`}>
               <div className="cn-group-head"><h3>{g.kind === 'routine' ? 'My routine' : g.title}</h3></div>
-              {items.map((n) => <NoteCard key={n.id} n={n} onPlay={onPlay} readOnly />)}
+              {(g.kind === 'skill' ? groupByType(items, skillById, homes) : [['', items]]).map(([head, list]) => (
+                <div key={head || 'all'}>
+                  {head && <div className="cn-type">{head}</div>}
+                  {list.map((n) => <NoteCard key={n.id} n={n} onPlay={onPlay} readOnly />)}
+                </div>
+              ))}
             </div>
           );
         })}
@@ -420,8 +426,13 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
               )}
             </div>
             {active.length === 0 && <p className="muted small">{g.hint}</p>}
-            {active.map((n) => <NoteCard key={n.id} n={n} onEdit={() => setEditing(n)} onDelete={() => setDeleting(n)} onPlay={onPlay}
-              onDone={async (v) => onChange(await run(() => api.noteDone(n.id, v), v ? 'Marked done' : 'Back to working on'))} />)}
+            {(g.kind === 'skill' ? groupByType(active, skillById, homes) : [['', active]]).map(([head, list]) => (
+              <div key={head || 'all'}>
+                {head && <div className="cn-type">{head}</div>}
+                {list.map((n) => <NoteCard key={n.id} n={n} onEdit={() => setEditing(n)} onDelete={() => setDeleting(n)} onPlay={onPlay}
+                  onDone={async (v) => onChange(await run(() => api.noteDone(n.id, v), v ? 'Marked done' : 'Back to working on'))} />)}
+              </div>
+            ))}
             {doneItems.length > 0 && (
               <button className="btn ghost sm" onClick={() => setShowDone((x) => ({ ...x, [g.kind]: !x[g.kind] }))}>
                 {showDone[g.kind] ? 'Hide' : 'Show'} done ({doneItems.length})
@@ -449,7 +460,7 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
       <div className={`cn-skill-row ${n.done ? 'done' : ''}`}>
         {!readOnly && <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />}
         <div className="grow">
-          <b>{n.title}</b>
+          <b>{skillById[n.skill_id] ? skillMove(skillById[n.skill_id]).split(' | ')[1] : n.title}</b>
           {n.notes && <div className="cn-skill-note">{n.notes}</div>}
           <VideoChips n={n} onPlay={onPlay} />
         </div>
