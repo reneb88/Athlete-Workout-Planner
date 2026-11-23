@@ -356,6 +356,8 @@ input:focus, textarea:focus, .select:focus { outline: none; border-color: var(--
 .picker .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--line-2); border-radius: 99px; padding: 4px 4px 4px 12px; font-size: 14px; }
 .chip button { border: none; background: #fff; border-radius: 50%; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.picker-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.diff-stars { margin-left: 8px; color: #f59e0b; font-size: 14px; letter-spacing: 1px; vertical-align: middle; }
 .picker-search { display: flex; gap: 8px; align-items: center; }
 .picker-search input { flex: 1; }
 .picker-results { margin: 6px 0 0; padding: 4px 6px 8px; border: 1px solid var(--line); border-radius: 12px; max-height: 340px; overflow-y: auto; }

@@ -332,3 +332,10 @@ export function groupByType(notes, skillById, homes) {
   }
   return out;
 }
+
+/** Difficulty 1–5 (stored in the skill's "level"); null when not rated. */
+export const difficulty = (s) => { const n = parseInt(s?.level, 10); return n >= 1 && n <= 5 ? n : null; };
+export const stars = (n) => (n ? '★'.repeat(n) : '');
+/** Shared difficulty filter: 'any' | 'none' | '1'…'5' */
+export const diffMatch = (s, f) => (f === 'any' || !f ? true : f === 'none' ? difficulty(s) === null : difficulty(s) === Number(f));
+export const DIFF_OPTIONS = [['any', 'Any difficulty'], ['1', '★ 1'], ['2', '★★ 2'], ['3', '★★★ 3'], ['4', '★★★★ 4'], ['5', '★★★★★ 5'], ['none', 'Not rated']];

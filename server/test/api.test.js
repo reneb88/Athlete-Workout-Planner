@@ -336,3 +336,13 @@ test('coach notes keep a linked skill and several labelled videos', async () => 
   assert.equal(bn.skill_id, 'S110');
   assert.deepEqual(bn.videos.map((v) => v.label), ['Practice Nov 23', 'Run-through']);
 });
+
+test('difficulty (stored in level) accepts stars and numbers', async () => {
+  const s = await fresh();
+  s.updateSkill('S010', { level: '***' });
+  s.updateSkill('S011', { level: '4 stars' });
+  s.updateSkill('S012', { level: '2' });
+  assert.equal(s.getSkill('S010').level, '3');
+  assert.equal(s.getSkill('S011').level, '4');
+  assert.equal(s.getSkill('S012').level, '2');
+});

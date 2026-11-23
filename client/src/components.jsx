@@ -306,3 +306,18 @@ export function GifThumb({ url, title = '', size = 48 }) {
     </>
   );
 }
+
+/** Difficulty filter dropdown. */
+export function DiffSelect({ value, onChange }) {
+  const opts = [['any', 'Any difficulty'], ['1', '★ 1'], ['2', '★★ 2'], ['3', '★★★ 3'], ['4', '★★★★ 4'], ['5', '★★★★★ 5'], ['none', 'Not rated']];
+  return (
+    <select className="select" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Difficulty">
+      {opts.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  );
+}
+export function DiffStars({ skill }) {
+  const n = parseInt(skill?.level, 10);
+  if (!(n >= 1 && n <= 5)) return null;
+  return <span className="diff-stars" title={`Difficulty ${n} of 5`}>{'★'.repeat(n)}</span>;
+}

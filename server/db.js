@@ -249,6 +249,12 @@ export function normalizeSkill(input) {
   if ('sequence' in s) s.sequence = Number(s.sequence) || 0;
   if ('sort_order' in s) s.sort_order = Number(s.sort_order) || 0;
   if ('required_elements' in s) s.required_elements = normalizeRequired(s.required_elements);
+  // Difficulty 1–5 is kept in "level": "**" or "2 stars" become "2"
+  if ('level' in s) {
+    const t = s.level;
+    if (/^\*+$/.test(t)) s.level = String(Math.min(5, t.length));
+    else if (/^\s*([1-5])\s*(stars?|★+)?\s*$/i.test(t)) s.level = t.match(/[1-5]/)[0];
+  }
   if ('film_status' in s) s.film_status = normalizeFilm(s.film_status);
   if ('prerequisites' in s) {
     let p = s.prerequisites;

@@ -20,7 +20,7 @@ const SKILL_COLS = [
   { key: 'target', label: 'Target', w: 100 },
   { key: 'video_url', label: 'Video URL', w: 170 },
   { key: 'gif_url', label: 'GIF', w: 170, hide: true },
-  { key: 'level', label: 'Level', w: 70, hide: true },
+  { key: 'level', label: 'Difficulty (1–5)', w: 110, hide: true },
   { key: 'prerequisites', label: 'Prerequisites (IDs)', w: 140, list: true, hide: true },
   { key: 'related', label: 'Related manipulation', w: 170, hide: true },
   { key: 'teaching_notes', label: 'Teaching notes', w: 240, hide: true },

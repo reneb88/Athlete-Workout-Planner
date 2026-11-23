@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, FamilySelect, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { DiffSelect, DiffStars, Check, Confirm, Disclosure, Empty, FamilySelect, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import FamilyVideo from '../FamilyVideo.jsx';
 import { duplicateSkill } from '../duplicate.js';
-import { CATEGORIES, REQUIRED_ELEMENTS, reList, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
+import { diffMatch, CATEGORIES, REQUIRED_ELEMENTS, reList, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, homeOf, isVariant, matchesSearch, skillLabel } from '../util.js';
 
 export default function Library() {
   const { skills, combos, run } = useApp();
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('all');
   const [flag, setFlag] = useState('all');
+  const [diff, setDiff] = useState('any');
   const [editing, setEditing] = useState(null); // skill object or {new defaults}
   const [deleting, setDeleting] = useState(null);
   const [video, setVideo] = useState(null);
@@ -26,11 +27,11 @@ export default function Library() {
 
   const homes = useMemo(() => familyHomes(skills), [skills]);
   const filtered = useMemo(() => skills.filter((s) =>
-    (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q) &&
+    (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q) && diffMatch(s, diff) &&
     (flag === 'all' || (flag === 'review' && s.review_notes) || (flag === 'video' && s.video_url) ||
-      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]) || (flag === 're-any' && reList(s).length) || (flag.startsWith('re:') && reList(s).includes(flag.slice(3))))), [skills, homes, cat, q, flag, comboBySkill]);
+      (flag === 'novideo' && !s.video_url) || (flag === 'combo' && comboBySkill[s.id]) || (flag === 're-any' && reList(s).length) || (flag.startsWith('re:') && reList(s).includes(flag.slice(3))))), [skills, homes, cat, q, flag, comboBySkill, diff]);
   const nodes = useMemo(() => buildTree(filtered, skills).filter((c) => c.subs.length), [filtered, skills]);
-  const searching = q.trim() || flag !== 'all';
+  const searching = q.trim() || flag !== 'all' || diff !== 'any';
   const isOpen = (k) => searching || tree.isOpen(k);
 
   const allKeys = nodes.flatMap((c) => [c.key, ...c.subs.flatMap((s) => [s.key, ...s.families.map((f) => f.key)])]);
@@ -56,6 +57,7 @@ export default function Library() {
       <div className="toolbar sticky">
         <SearchBox value={q} onChange={setQ} placeholder="Search name, family, target, notes, ID…" />
         <Seg value={cat} onChange={setCat} options={[{ value: 'all', label: 'All' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} />
+        <DiffSelect value={diff} onChange={setDiff} />
         <select className="select" value={flag} onChange={(e) => setFlag(e.target.value)} aria-label="Filter">
           <option value="all">All challenges</option>
           <option value="review">Needs review</option>
@@ -98,7 +100,7 @@ export default function Library() {
                         {grip}
                         <span className="seq">{i + 1}</span>
                         <div className="skill-main" onClick={() => setEditing(sk)}>
-                          <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
+                          <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}<DiffStars skill={sk} />{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
                           <div className="skill-meta">
                             <span className="pill">{sk.id}</span>
                             {sk.related && <span className="tag">Related: {sk.related}</span>}
@@ -227,7 +229,13 @@ export function SkillEditor({ skill, onClose }) {
           </Field>
         )}
         <Field label="Target"><input value={f.target} onChange={set('target')} placeholder="e.g. 10 jumps" /></Field>
-        <Field label="Level"><input value={f.level} onChange={set('level')} placeholder="optional" /></Field>
+        <Field label="Difficulty">
+          <select className="select block" value={['1', '2', '3', '4', '5'].includes(String(f.level)) || !f.level ? String(f.level || '') : f.level} onChange={set('level')}>
+            <option value="">Not rated</option>
+            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={String(n)}>{'★'.repeat(n)} {n}</option>)}
+            {f.level && !['1', '2', '3', '4', '5'].includes(String(f.level)) && <option value={f.level}>{f.level}</option>}
+          </select>
+        </Field>
         {!isNew && <StepControl skill={skill} family={f.family} />}
         <Field label="Related manipulation"><input value={f.related} onChange={set('related')} /></Field>
         <Field label="Video link" hint="YouTube, Vimeo or a direct .mp4 link">

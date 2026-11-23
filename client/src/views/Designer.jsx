@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, useApp, useOpenSet } from '../components.jsx';
-import { CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
+import { DiffSelect, DiffStars, Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, SearchBox, Seg, SortableList, useApp, useOpenSet } from '../components.jsx';
+import { diffMatch, CATEGORIES, buildTree, buildsOnMap, familyHomes, familyKey, familyName, familySkills, familyWhere, homeOf, isVariant, idsOfCat, idsOfFamily, idsOfSub, matchesSearch, skillLabel } from '../util.js';
 import { go } from '../App.jsx';
 import { SkillEditor } from './Library.jsx';
 import { duplicateSkill } from '../duplicate.js';
@@ -35,6 +35,7 @@ export default function Designer({ initialAthlete }) {
   const [dirty, setDirty] = useState(() => !!draft?.dirty);
   const [q, setQ] = useState(() => draft?.q || '');
   const [cat, setCat] = useState(() => draft?.cat || 'all');
+  const [diff, setDiff] = useState('any');
   const [athQ, setAthQ] = useState('');
   const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null); // skill being edited / added from here
@@ -151,9 +152,9 @@ export default function Designer({ initialAthlete }) {
   const addCombo = (id) => mutate((w) => { w.manual.add(id); w.dismissed.delete(id); });
 
   const homes = useMemo(() => familyHomes(skills), [skills]);
-  const filtered = useMemo(() => skills.filter((s) => (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q)), [skills, homes, cat, q]);
+  const filtered = useMemo(() => skills.filter((s) => (cat === 'all' || homeOf(homes, s)?.category === cat) && matchesSearch(s, q) && diffMatch(s, diff)), [skills, homes, cat, q, diff]);
   const nodes = useMemo(() => buildTree(filtered, skills).filter((c) => c.subs.length), [filtered, skills]);
-  const searching = !!q.trim();
+  const searching = !!q.trim() || diff !== 'any';
   const isOpen = (k) => searching || tree.isOpen(k);
 
   const payload = () => ({
@@ -262,6 +263,7 @@ export default function Designer({ initialAthlete }) {
           <div className="toolbar">
             <SearchBox value={q} onChange={setQ} />
             <Seg value={cat} onChange={setCat} options={[{ value: 'all', label: 'All' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]} />
+            <DiffSelect value={diff} onChange={setDiff} />
             {!searching && (
               <div className="btn-group">
                 <button className="btn ghost sm" onClick={() => tree.setMany(allKeys, true)}>Expand all</button>
@@ -301,7 +303,7 @@ export default function Designer({ initialAthlete }) {
                                     <Check checked={on} onChange={(v) => setSkills([sk.id], v)} label={skillLabel(sk)} />
                                     <span className="seq">{i + 1}</span>
                                     <div className="skill-main">
-                                      <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
+                                      <div className="skill-name">{sk.name}{sk.target && <span className="target">{sk.target}</span>}<DiffStars skill={sk} />{isVariant(sk, f) && <span className="tag variant">{sk.category} · {sk.subcategory}</span>}</div>
                                       {(sk.leads_to || sk.required_elements) && <div className="skill-meta">
                                         {sk.leads_to && <span className="tag next">→ Leads to {familyName(sk.leads_to)}</span>}<ReTags skill={sk} /></div>}
                                       {checkpointMap[sk.id] && (
