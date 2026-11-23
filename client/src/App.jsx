@@ -11,6 +11,7 @@ import PrintCenter from './views/PrintCenter.jsx';
 import Spreadsheet from './views/Spreadsheet.jsx';
 import Login from './views/Login.jsx';
 import Filming from './views/Filming.jsx';
+import PublicAthlete from './views/PublicAthlete.jsx';
 
 const NAV = [
   { id: 'designer', label: 'Workout Designer', short: 'Designer' },
@@ -89,6 +90,8 @@ export default function App() {
 
   const athleteMode = route.page === 'athlete';
 
+  // Athlete's private link: no coach sign-in needed.
+  if (route.page === 'a' && route.arg) return <PublicAthlete token={route.arg} />;
   if (!auth) return <div className="loading">{error ? `Couldn’t reach the Ropeworks server: ${error}` : 'Loading…'}</div>;
   if (!auth.authed) return <Login hasPassword={auth.hasPassword} onDone={() => { setError(null); checkAuth(); }} />;
 

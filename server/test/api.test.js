@@ -292,3 +292,33 @@ test('a note can be linked to a Combo Library combo', async () => {
   s.saveNote('A01', { ...n[0], notes: 'Toad\nToad 3x\nCross open' }, n[0].id);
   assert.equal(s.listNotes('A01')[0].combo_id, c.id);
 });
+
+test('private athlete links: only that athlete, no password', async () => {
+  const { createApp } = await import('../index.js');
+  const app = await createApp({ dbFile: ':memory:', seedFile: path.join(ROOT, 'data', 'library-seed.xlsx') });
+  const store = app.locals.store;
+  store.createAthlete({ id: 'A01', name: 'Kid One', age: '14' });
+  store.createAthlete({ id: 'A02', name: 'Kid Two' });
+  store.saveWorkout('A01', { skill_ids: ['S110'] });
+  store.saveNote('A01', { kind: 'routine', title: 'Routine', notes: 'Toad\nCross' });
+  const token = store.shareToken('A01');
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const r = await fetch(`${base}/api/public/${token}`);
+    assert.equal(r.status, 200);
+    const v = await r.json();
+    assert.equal(v.athlete.name, 'Kid One');
+    assert.deepEqual(v.workout.skill_ids, ['S110']);
+    assert.equal(v.workout.notes.length, 1);
+    assert.ok(!('athletes' in v));
+    const put = (body) => fetch(`${base}/api/public/${token}/progress`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await put({ item_type: 'skill', item_id: 'S110', done: true })).status, 200);
+    assert.equal((await put({ item_type: 'skill', item_id: 'S111', done: true })).status, 403);
+    assert.equal((await fetch(`${base}/api/public/wrong-token-xxxxxxxxxx`)).status, 404);
+    assert.equal((await fetch(`${base}/api/state`)).status, 401);
+    const t2 = store.shareToken('A01', true);
+    assert.notEqual(t2, token);
+    assert.equal((await fetch(`${base}/api/public/${token}`)).status, 404);
+  } finally { server.close(); }
+});

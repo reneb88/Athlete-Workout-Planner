@@ -7,18 +7,21 @@ import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 
-export default function AthleteView({ athleteId }) {
+export default function AthleteView({ athleteId, publicToken, initial }) {
+  // Opened through an athlete's private link: their own view, nothing to edit except ticking things off.
+  const readOnly = !!publicToken;
   const app = useApp();
   const { athleteById, skillById, comboById, combos, toast } = app;
   const buildsOn = useMemo(() => buildsOnMap(app.skills), [app.skills]);
   const athlete = athleteById[athleteId];
-  const [w, setW] = useState(null);
+  const [w, setW] = useState(initial || null);
   const [filter, setFilter] = useState('all');
   const [video, setVideo] = useState(null);
   const tree = useOpenSet();
 
-  const load = useCallback(() => api.workout(athleteId).then(setW).catch((e) => toast(e.message, 'err')), [athleteId, toast]);
-  useEffect(() => { if (athlete) load(); }, [athlete, load]);
+  const load = useCallback(() => (publicToken ? api.publicView(publicToken).then((v) => setW(v.workout)) : api.workout(athleteId).then(setW))
+    .catch((e) => toast(e.message, 'err')), [athleteId, toast, publicToken]);
+  useEffect(() => { if (athlete && !initial) load(); }, [athlete, load, initial]);
 
   const done = useMemo(() => new Set((w?.progress || []).map((p) => `${p.item_type}:${p.item_id}`)), [w]);
   const assignedSkills = useMemo(() => (w?.skill_ids || []).map((id) => skillById[id]).filter(Boolean), [w, skillById]);
@@ -48,7 +51,10 @@ export default function AthleteView({ athleteId }) {
   async function toggle(type, id, on) {
     // optimistic update
     setW((x) => ({ ...x, progress: on ? [...x.progress, { item_type: type, item_id: id, completed_at: new Date().toISOString() }] : x.progress.filter((p) => !(p.item_type === type && p.item_id === id)) }));
-    try { setW(await api.setProgress(athleteId, type, id, on)); app.reload(); } catch (e) { toast(e.message, 'err'); load(); }
+    try {
+      if (publicToken) setW(await api.publicProgress(publicToken, type, id, on));
+      else { setW(await api.setProgress(athleteId, type, id, on)); app.reload(); }
+    } catch (e) { toast(e.message, 'err'); load(); }
   }
 
   const routines = assignedCombos.filter((c) => c.kind === 'routine');
@@ -56,13 +62,13 @@ export default function AthleteView({ athleteId }) {
 
   const board = athleteView(athlete, app.settings) === 'videos';
   const fresh = newSincePrint(w);
-  const markPrinted = () => api.markPrinted([athlete.id]).then(load).catch(() => {});
+  const markPrinted = () => (readOnly ? null : api.markPrinted([athlete.id]).then(load).catch(() => {}));
   const setView = (v) => app.run(() => api.updateAthlete(athlete.id, { view_style: v }), v ? `${athlete.name}: ${v === 'videos' ? 'video board' : 'checklist'}` : `${athlete.name}: automatic by age`);
 
   return (
     <div className="page athlete-view">
       <div className="athlete-hero no-print">
-        <button className="btn ghost sm back" onClick={() => go('athletes')}><Icon name="chevron" size={18} /> Athletes</button>
+        {!readOnly && <button className="btn ghost sm back" onClick={() => go('athletes')}><Icon name="chevron" size={18} /> Athletes</button>}
         <div className="hero-row">
           <div>
             <p className="eyebrow">{board ? 'Ropeworks video board' : 'Ropeworks training plan'}</p>
@@ -72,10 +78,12 @@ export default function AthleteView({ athleteId }) {
           {!board && <div className="ring" style={{ '--p': pct }} aria-label={`${pct}% complete`}><span>{pct}%</span><small>{complete}/{total}</small></div>}
         </div>
         <div className="toolbar">
-          <Seg value={board ? 'videos' : 'checklist'} onChange={setView} options={[{ value: 'checklist', label: 'Checklist' }, { value: 'videos', label: 'Video board' }]} />
-          {athlete.view_style
-            ? <button className="btn ghost sm" onClick={() => setView('')}>Use automatic (age {app.settings?.videoBoardAge ?? 13}+ = video board)</button>
-            : <small className="muted auto-note">Automatic by age</small>}
+          {!readOnly && <>
+            <Seg value={board ? 'videos' : 'checklist'} onChange={setView} options={[{ value: 'checklist', label: 'Checklist' }, { value: 'videos', label: 'Video board' }]} />
+            {athlete.view_style
+              ? <button className="btn ghost sm" onClick={() => setView('')}>Use automatic (age {app.settings?.videoBoardAge ?? 13}+ = video board)</button>
+              : <small className="muted auto-note">Automatic by age</small>}
+          </>}
           {!board && <Seg value={filter} onChange={setFilter} options={[{ value: 'all', label: 'All' }, { value: 'todo', label: 'To do' }, { value: 'done', label: 'Done' }]} />}
           <div className="btn-group">
             {!board && <>
@@ -83,9 +91,10 @@ export default function AthleteView({ athleteId }) {
               <button className="btn ghost sm" onClick={() => tree.setOpen(new Set())}>Collapse all</button>
             </>}
             <button className="btn sm" onClick={() => { window.print(); markPrinted(); }}><Icon name="print" size={18} /> Print</button>
-            <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>
+            {!readOnly && <button className="btn ghost sm" onClick={() => go('print', athleteId)}>Print options</button>}
+            {!readOnly && <ShareButton athlete={athlete} />}
             <button className="btn sm" onClick={async () => { await exportPdf({ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, all: app.skills, videoBoard: board, fresh, notes: w.notes }); markPrinted(); }}><Icon name="file" size={18} /> PDF</button>
-            <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>
+            {!readOnly && <button className="btn ghost sm" onClick={() => go('designer', athleteId)}>Edit workout</button>}
           </div>
         </div>
       </div>
@@ -192,8 +201,8 @@ export default function AthleteView({ athleteId }) {
         )}
       </div>}
 
-      <CoachNotes athlete={athlete} notes={w.notes || []} onChange={(notes) => setW((x) => ({ ...x, notes }))} onPlay={setVideo} />
-      <History w={w} lastPrinted={w.last_printed_at} />
+      <CoachNotes athlete={athlete} notes={w.notes || []} onChange={(notes) => setW((x) => ({ ...x, notes }))} onPlay={setVideo} readOnly={readOnly} />
+      {!readOnly && <History w={w} lastPrinted={w.last_printed_at} />}
       <PrintSheet data={{ athlete, skills: assignedSkills, combos: assignedCombos, done, comboByCheckpoint, fresh, notes: w.notes }} skillById={skillById} videoBoard={board} />
       {video && <VideoModal url={video.url} title={video.title} onClose={() => setVideo(null)} />}
     </div>
@@ -337,7 +346,7 @@ const NOTE_GROUPS = [
 const linesOf = (t) => String(t || '').split('\n').map((x) => x.trim()).filter(Boolean);
 
 /** Coach notes on an athlete's profile: working skills, working combos and their routine (in order). */
-function CoachNotes({ athlete, notes, onChange, onPlay }) {
+function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
   const { run } = useApp();
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -368,6 +377,24 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
     const list = await run(() => api.saveNote(athlete.id, note, note.id), note.id ? 'Saved' : 'Added');
     onChange(list);
   };
+  if (readOnly) {
+    const active = notes.filter((n) => !n.done);
+    if (!active.length) return null;
+    return (
+      <section className="card coach-notes no-print">
+        <div className="cn-head"><h2>What I’m working on</h2></div>
+        {NOTE_GROUPS.map((g) => {
+          const items = active.filter((n) => n.kind === g.kind);
+          return items.length > 0 && (
+            <div key={g.kind} className={`cn-group cn-${g.kind}`}>
+              <div className="cn-group-head"><h3>{g.kind === 'routine' ? 'My routine' : g.title}</h3></div>
+              {items.map((n) => <NoteCard key={n.id} n={n} onPlay={onPlay} readOnly />)}
+            </div>
+          );
+        })}
+      </section>
+    );
+  }
   return (
     <section className="card coach-notes no-print">
       <div className="cn-head">
@@ -406,21 +433,21 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
   );
 }
 
-function NoteCard({ n, onEdit, onDelete, onDone, onPlay }) {
+function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
   const lines = linesOf(n.notes);
   return (
     <article className={`cn-card ${n.done ? 'done' : ''}`}>
       <div className="cn-card-head">
-        <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />
+        {!readOnly && <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />}
         <b className="grow">{n.title || (n.kind === 'routine' ? 'Routine' : 'Untitled')}{n.combo_id && <span className="tag lib-tag" title="Saved in the Combo Library">In Combo Library</span>}</b>
         {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
-        <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>
-        <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>
+        {!readOnly && <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>}
+        {!readOnly && <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>}
       </div>
       {n.kind === 'skill'
         ? (n.notes && <p className="cn-text">{n.notes}</p>)
         : lines.length > 0 && <ol className="cn-moves">{lines.map((l, i) => <li key={i}>{l}</li>)}</ol>}
-      <small className="muted">Updated {fmtDay(n.updated_at)}</small>
+      {!readOnly && <small className="muted">Updated {fmtDay(n.updated_at)}</small>}
     </article>
   );
 }
@@ -598,5 +625,44 @@ function MovesBuilder({ value, onChange, skillOptions }) {
         <button type="button" className="btn ghost sm" onClick={() => setAsText(true)}>Edit as text</button>
       </div>
     </div>
+  );
+}
+
+/** Coach: get the athlete's private link (and QR code) to send them. */
+function ShareButton({ athlete }) {
+  const { toast } = useApp();
+  const [open, setOpen] = useState(false);
+  const [link, setLink] = useState('');
+  const [qr, setQr] = useState('');
+  const [confirmNew, setConfirmNew] = useState(false);
+  const make = async (regenerate = false) => {
+    const { token } = await api.shareLink(athlete.id, regenerate);
+    const url = `${window.location.origin}/#/a/${token}`;
+    setLink(url);
+    const QR = (await import('qrcode')).default;
+    setQr(await QR.toDataURL(url, { margin: 1, width: 360, color: { dark: '#0b1e3a' } }));
+  };
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(link); toast('Link copied'); } catch { toast('Press and hold the link to copy it'); }
+  };
+  return (
+    <>
+      <button className="btn sm" onClick={() => { setOpen(true); make().catch((e) => toast(e.message, 'err')); }}><Icon name="link" size={18} /> Share with athlete</button>
+      {open && (
+        <Modal title={`${athlete.name}’s private link`} onClose={() => setOpen(false)}>
+          <p>Send this to {athlete.name.split(' ')[0]} (or their parent). It opens <b>only their page</b> — their checklist or video board and what they’re working on — with no password. They can tick things off but can’t change anything else.</p>
+          {link ? (
+            <>
+              <div className="share-link"><input readOnly value={link} onFocus={(e) => e.target.select()} /><button className="btn primary sm" onClick={copy}>Copy</button></div>
+              {qr && <img className="share-qr" src={qr} alt="QR code for the link" />}
+              <p className="muted small">Print the QR code or show it on your screen — they scan it with their phone camera.</p>
+              <button className="btn ghost sm danger-text" onClick={() => setConfirmNew(true)}>Make a new link (the old one stops working)</button>
+            </>
+          ) : <p className="muted">Making the link…</p>}
+          {confirmNew && <Confirm text="Make a new link? The old link will stop working for anyone who has it." confirmLabel="Make new link"
+            onConfirm={() => make(true).then(() => toast('New link made')).catch((e) => toast(e.message, 'err'))} onClose={() => setConfirmNew(false)} />}
+        </Modal>
+      )}
+    </>
   );
 }

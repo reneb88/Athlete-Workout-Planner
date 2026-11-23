@@ -45,6 +45,13 @@ export async function createApp({ dbFile, seedFile } = {}) {
     if (!auth.isAuthed(req)) throw Object.assign(new Error('Please sign in'), { status: 401 });
     auth.change(req, res, req.body?.current, req.body?.next);
   }));
+  // Athletes' private links work without the coach password, and only ever show that one athlete.
+  app.get('/api/public/:token', h((req) => store.publicView(req.params.token)));
+  app.put('/api/public/:token/progress', h((req) => {
+    const w = store.publicProgress(req.params.token, req.body?.item_type, String(req.body?.item_id || ''), !!req.body?.done);
+    return { ...w, history: [], notes: w.notes.filter((n) => !n.done) };
+  }));
+
   // Everything else under /api requires a signed-in coach.
   app.use('/api', (req, res, next) => (auth.isAuthed(req) ? next() : res.status(401).json({ error: 'Please sign in' })));
 
@@ -63,6 +70,7 @@ export async function createApp({ dbFile, seedFile } = {}) {
   app.put('/api/athletes/:id/notes/:noteId', h((req) => store.saveNote(req.params.id, req.body || {}, Number(req.params.noteId))));
   app.put('/api/notes/:noteId/done', h((req) => store.setNoteDone(Number(req.params.noteId), !!req.body?.done)));
   app.delete('/api/notes/:noteId', h((req) => store.deleteNote(Number(req.params.noteId))));
+  app.post('/api/athletes/:id/share', h((req) => ({ token: store.shareToken(req.params.id, !!req.body?.regenerate) })));
   app.post('/api/athletes/printed', h((req) => (req.body?.ids || []).map((id) => store.markPrinted(id))));
 
   app.post('/api/combos', h((req) => store.createCombo(req.body)));

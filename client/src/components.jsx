@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { embedUrl, familyName, familyOptions, formatTime, isDirectVideo, isVimeo, splitVideo } from './util.js';
 
 export const AppCtx = createContext(null);
@@ -48,8 +49,10 @@ export function Modal({ title, onClose, children, footer, wide }) {
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, [onClose]);
-  return (
-    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+  // Rendered on top of the page (not inside whatever section opened it), so it never inherits that section's colours.
+  return createPortal(
+    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
@@ -58,7 +61,8 @@ export function Modal({ title, onClose, children, footer, wide }) {
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

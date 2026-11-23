@@ -1,6 +1,7 @@
 // Ropeworks Training Studio — SQLite persistence layer (uses Node's built-in node:sqlite).
 import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
 export const CATEGORIES = ['Manipulation', 'Multiples', 'Power'];
@@ -166,7 +167,7 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at'], ['athlete_notes', 'combo_id']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at'], ['athlete_notes', 'combo_id'], ['athletes', 'share_token']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
@@ -452,6 +453,45 @@ class Store {
   }
 
   allNotes() { return this.db.prepare('SELECT * FROM athlete_notes ORDER BY athlete_id, sort_order, id').all(); }
+
+  // ---------- Private athlete links (no password; only that athlete's page) ----------
+  shareToken(id, regenerate = false) {
+    const a = this.getAthlete(id);
+    if (!a) throw httpError(404, 'Athlete not found');
+    if (a.share_token && !regenerate) return a.share_token;
+    const token = randomBytes(18).toString('base64url');
+    this.db.prepare('UPDATE athletes SET share_token = ? WHERE id = ?').run(token, id);
+    return token;
+  }
+
+  athleteByToken(token) {
+    if (!token || String(token).length < 16) return null;
+    return this.db.prepare("SELECT * FROM athletes WHERE share_token = ? AND share_token != ''").get(String(token)) || null;
+  }
+
+  /** What an athlete sees through their private link: their workout and notes plus the library it refers to. */
+  publicView(token) {
+    const a = this.athleteByToken(token);
+    if (!a) throw httpError(404, 'This link doesn’t work any more. Ask your coach for a new one.');
+    const w = this.getWorkout(a.id);
+    const hide = ['film_status', 'film_assignee', 'film_note', 'review_notes', 'source_page'];
+    return {
+      athlete: { id: a.id, name: a.name, age: a.age, group_notes: a.group_notes, view_style: a.view_style },
+      workout: { ...w, history: [], notes: w.notes.filter((n) => !n.done) },
+      skills: this.snapshot().skills.map((s) => Object.fromEntries(Object.entries(s).filter(([k]) => !hide.includes(k)))),
+      combos: this.listCombos().map(({ film_status, film_assignee, film_note, ...c }) => c),
+      settings: this.getSettings(),
+    };
+  }
+
+  publicProgress(token, itemType, itemId, done) {
+    const a = this.athleteByToken(token);
+    if (!a) throw httpError(404, 'Link not found');
+    const w = this.getWorkout(a.id);
+    const assigned = itemType === 'skill' ? w.skill_ids.includes(itemId) : w.combos.some((c) => c.id === itemId);
+    if (!assigned) throw httpError(403, 'Not on this athlete’s list');
+    return this.setProgress(a.id, itemType, itemId, done);
+  }
 
   /** Remember when this athlete's checklist was last printed / made into a PDF. */
   markPrinted(id) {
