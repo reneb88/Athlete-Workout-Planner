@@ -238,7 +238,8 @@ export function shareUrl(url) {
   if (!url) return '';
   const { start, chapter } = splitVideo(url);
   const v = vimeoInfo(url);
-  if (v) return `https://vimeo.com/${v.id}${v.hash ? '/' + v.hash : ''}${start ? `#t=${start}s` : chapter ? `#chapter=${chapter}` : ''}`;
+  // Use Vimeo's player link: it works for videos set to "embed only / hide from Vimeo", where vimeo.com/… shows "page not found".
+  if (v) return `https://player.vimeo.com/video/${v.id}${v.hash ? `?h=${v.hash}` : ''}${start ? `#t=${start}s` : ''}`;
   const yt = youtubeId(url);
   if (yt) return `https://youtu.be/${yt}${start ? `?t=${start}` : ''}`;
   const { base } = splitVideo(url);

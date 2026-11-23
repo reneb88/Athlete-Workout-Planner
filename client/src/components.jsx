@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { embedUrl, familyName, familyOptions, formatTime, isDirectVideo, isVimeo, splitVideo } from './util.js';
+import { embedUrl, familyName, familyOptions, formatTime, isDirectVideo, isVimeo, shareUrl, splitVideo } from './util.js';
 
 export const AppCtx = createContext(null);
 export const useApp = () => useContext(AppCtx);
@@ -74,7 +74,7 @@ export function VideoModal({ url, title, onClose }) {
       {(start || end) && <p className="muted small">Plays {formatTime(start || 0)}{end ? `–${formatTime(end)}` : ' onwards'}</p>}
       {chapter && !start && (
         <p className="banner warn small">This is a Vimeo <b>chapter</b> link — the player inside the app can’t jump to chapters, so it starts at 0:00.
-          Use <b>Open video in new tab</b> to go to the chapter, or give this step a start time (Library → Family video).</p>
+          Give this step a start time instead (Library → Family video, or a link ending in #t=1m30s).</p>
       )}
       {src ? (
         isDirectVideo(src)
@@ -85,7 +85,7 @@ export function VideoModal({ url, title, onClose }) {
       ) : (
         <p className="muted">This link can’t be played inside the app.</p>
       )}
-      <p><a className="btn ghost" href={url} target="_blank" rel="noreferrer"><Icon name="link" /> Open video in new tab</a></p>
+      <p><a className="btn ghost" href={shareUrl(url)} target="_blank" rel="noreferrer"><Icon name="link" /> Open video in new tab</a></p>
     </Modal>
   );
 }
