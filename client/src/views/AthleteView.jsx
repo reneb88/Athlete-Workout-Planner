@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
-import { athleteView, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
+import { athleteView, noteVideos, comboMove, movesOf, parseMove, skillMove, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
@@ -354,12 +354,12 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
   const [picking, setPicking] = useState(false);
   // Add many at once: library skills become working skills; library combos/routines keep their moves and video.
   const addMany = async ({ skills: sIds, combos: cIds }, skillById, comboById) => {
-    const have = (kind, title, comboId) => notes.some((n) => (comboId && n.combo_id === comboId)
+    const have = (kind, title, comboId, skillId) => notes.some((n) => (comboId && n.combo_id === comboId) || (skillId && n.skill_id === skillId)
       || (n.kind === kind && n.title.trim().toLowerCase() === title.trim().toLowerCase()));
     const todo = [
-      ...sIds.map((id) => skillById[id]).filter(Boolean).map((s) => ({ kind: 'skill', title: `${s.family}: ${skillLabel(s)}`, notes: s.teaching_notes || '', video_url: s.video_url || '' })),
-      ...cIds.map((id) => comboById[id]).filter(Boolean).map((c) => ({ kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', video_url: c.video_url || '', combo_id: c.id })),
-    ].filter((n) => !have(n.kind, n.title, n.combo_id));
+      ...sIds.map((id) => skillById[id]).filter(Boolean).map((s) => ({ kind: 'skill', title: `${s.family}: ${skillLabel(s)}`, notes: s.teaching_notes || '', skill_id: s.id })),
+      ...cIds.map((id) => comboById[id]).filter(Boolean).map((c) => ({ kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', combo_id: c.id })),
+    ].filter((n) => !have(n.kind, n.title, n.combo_id, n.skill_id));
     if (!todo.length) { setPicking(false); return; }
     let list = notes;
     for (const n of todo) list = await api.saveNote(athlete.id, n);
@@ -370,7 +370,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
   const save = async ({ toLibrary, updateLibrary, ...note }) => {
     // Combos and routines can live in the Combo Library too, so they can be given to other athletes later.
     if (note.kind !== 'skill') {
-      const lib = { name: note.title.trim() || 'Untitled', kind: note.kind === 'routine' ? 'routine' : 'combo', notes: note.notes, video_url: note.video_url || '' };
+      const lib = { name: note.title.trim() || 'Untitled', kind: note.kind === 'routine' ? 'routine' : 'combo', notes: note.notes, video_url: (note.videos || [])[0]?.url || note.video_url || '' };
       if (!note.combo_id && toLibrary) note.combo_id = (await run(() => api.createCombo(lib), `“${lib.name}” added to the Combo Library`)).id;
       else if (note.combo_id && updateLibrary) await run(() => api.updateCombo(note.combo_id, lib), 'Combo Library updated too');
     }
@@ -441,6 +441,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay, readOnly }) {
 }
 
 function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
+  const { skillById = {} } = useApp();
   const lines = linesOf(n.notes);
   if (n.kind === 'skill') {
     // Working skills: a compact focus list, one line each
@@ -450,8 +451,9 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
         <div className="grow">
           <b>{n.title}</b>
           {n.notes && <div className="cn-skill-note">{n.notes}</div>}
+          <VideoChips n={n} onPlay={onPlay} />
         </div>
-        {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
+        {skillById[n.skill_id]?.gif_url && <GifThumb url={skillById[n.skill_id].gif_url} title={n.title} size={40} />}
         {!readOnly && <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>}
         {!readOnly && <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>}
       </div>
@@ -462,13 +464,14 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
       <div className="cn-card-head">
         {!readOnly && <Check checked={n.done} onChange={onDone} label={`Done: ${n.title}`} />}
         <b className="grow">{n.title || (n.kind === 'routine' ? 'Routine' : 'Untitled')}{n.combo_id && <span className="tag lib-tag" title="Saved in the Combo Library">In Combo Library</span>}</b>
-        {n.video_url && <button className="icon-btn accent" aria-label="Watch video" onClick={() => onPlay({ url: n.video_url, title: n.title })}><Icon name="play" /></button>}
+
         {!readOnly && <button className="icon-btn" aria-label="Edit note" onClick={onEdit}><Icon name="edit" /></button>}
         {!readOnly && <button className="icon-btn danger" aria-label="Delete note" onClick={onDelete}><Icon name="trash" /></button>}
       </div>
       {n.kind === 'skill'
         ? (n.notes && <p className="cn-text">{n.notes}</p>)
-        : lines.length > 0 && <ol className="cn-moves">{lines.map((l, i) => <li key={i}>{l}</li>)}</ol>}
+        : lines.length > 0 && <MovesList lines={lines} onPlay={onPlay} />}
+      <VideoChips n={n} onPlay={onPlay} />
       {!readOnly && <small className="muted">Updated {fmtDay(n.updated_at)}</small>}
     </article>
   );
@@ -476,13 +479,16 @@ function NoteCard({ n, onEdit, onDelete, onDone, onPlay, readOnly }) {
 
 function NoteEditor({ note, onSave, onClose }) {
   const { skills, combos, comboById } = useApp();
-  const [f, setF] = useState({ combo_id: '', ...note, toLibrary: !note.combo_id, updateLibrary: false });
+  // Older notes kept one video in video_url — fold it into the list of videos.
+  const [f, setF] = useState(() => ({ combo_id: '', skill_id: '', ...note,
+    videos: [...(note.video_url ? [{ label: 'Video', url: note.video_url }] : []), ...(note.videos || [])], video_url: '',
+    toLibrary: !note.combo_id, updateLibrary: false }));
   const linked = f.combo_id ? comboById[f.combo_id] : null;
   const nameClash = !f.combo_id && f.toLibrary && f.title.trim() && combos.find((c) => c.name.trim().toLowerCase() === f.title.trim().toLowerCase());
   const fromLibrary = (id) => {
     const c = comboById[id];
     if (!c) return;
-    setF((x) => ({ ...x, kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', video_url: c.video_url || x.video_url, combo_id: c.id, toLibrary: false, updateLibrary: false }));
+    setF((x) => ({ ...x, kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', combo_id: c.id, toLibrary: false, updateLibrary: false }));
   };
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   const ordered = f.kind !== 'skill';
@@ -506,14 +512,16 @@ function NoteEditor({ note, onSave, onClose }) {
         placeholder={f.kind === 'routine' ? 'e.g. Single rope freestyle 2027' : f.kind === 'combo' ? 'e.g. Toad combo' : 'e.g. Triple under'} /></Field>
       {ordered ? (
         <Field group label="Moves in order" hint="Drag ⋮⋮ or use the arrows to reorder. Shown numbered on the athlete’s page and printout.">
-          <MovesBuilder value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} skillOptions={options} />
+          <MovesBuilder value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} />
         </Field>
       ) : (
         <Field label="Notes" hint="Coaching cues, what to focus on, goals…">
           <textarea rows={5} value={f.notes} onChange={set('notes')} placeholder="Keep elbows in, land on the balls of the feet…" />
         </Field>
       )}
-      <Field label="Video link (optional)"><input type="url" inputMode="url" value={f.video_url || ''} onChange={set('video_url')} placeholder="https://vimeo.com/…" /></Field>
+      <Field group label="Videos" hint="The library demo is linked automatically. Add your own: practice clips, a run-through of their routine…">
+        <VideosEditor note={f} onChange={(videos) => setF((x) => ({ ...x, videos }))} />
+      </Field>
       {ordered && !linked && (
         <label className="opt">
           <input type="checkbox" checked={f.toLibrary} onChange={(e) => setF((x) => ({ ...x, toLibrary: e.target.checked }))} />
@@ -581,23 +589,28 @@ function LibraryPicker({ notes, onAdd, onClose, initialTab = 'skills' }) {
   );
 }
 
-/** Routine / combo builder: one row per move — type it, pick a skill, or insert a combo. */
-function MovesBuilder({ value, onChange, skillOptions }) {
-  const { combos } = useApp();
-  const lines = String(value || '').split('\n').map((x) => x.trim()).filter(Boolean);
-  const [text, setText] = useState('');
+/** Routine / combo builder: a sequence of skills, combos and notes. */
+function MovesBuilder({ value, onChange }) {
+  const { skills, combos, skillById, comboById } = useApp();
+  const lines = movesOf(value);
   const [skill, setSkill] = useState('');
   const [comboId, setComboId] = useState('');
+  const [note, setNote] = useState('');
   const [asText, setAsText] = useState(false);
   const setLines = (ls) => onChange(ls.map((x) => x.trim()).filter(Boolean).join('\n'));
   const add = (...items) => setLines([...lines, ...items]);
   const move = (i, d) => { const ls = [...lines]; const j = i + d; if (j < 0 || j >= ls.length) return; [ls[i], ls[j]] = [ls[j], ls[i]]; setLines(ls); };
-  const combo = combos.find((c) => c.id === comboId);
-  const comboMoves = combo ? String(combo.notes || '').split('\n').map((x) => x.trim()).filter(Boolean) : [];
+  // skill search: "Family: Skill" labels → skill
+  const skillByLabel = useMemo(() => Object.fromEntries(skills.map((s) => [skillMove(s).split(' | ')[1].toLowerCase(), s])), [skills]);
+  const pickedSkill = skillByLabel[skill.trim().toLowerCase()];
+  const combo = comboById[comboId];
+  const addSkill = () => { if (pickedSkill) { add(skillMove(pickedSkill)); setSkill(''); } };
+  const addNote = () => { if (note.trim()) { add(note); setNote(''); } };
   if (asText) {
     return (
       <div>
-        <textarea rows={10} value={value} onChange={(e) => onChange(e.target.value)} placeholder={'One move per line'} />
+        <textarea rows={10} value={value} onChange={(e) => onChange(e.target.value)} />
+        <p className="muted small">Lines starting with @S… are library skills and @C… are combos — leave those as they are.</p>
         <button type="button" className="btn ghost sm" onClick={() => { setLines(lines); setAsText(false); }}>Back to the builder</button>
       </div>
     );
@@ -605,45 +618,54 @@ function MovesBuilder({ value, onChange, skillOptions }) {
   const ids = lines.map((_, i) => `m${i}`);
   return (
     <div className="moves">
-      {lines.length === 0 ? <p className="muted small">No moves yet — add them below.</p> : (
+      {lines.length === 0 ? <p className="muted small">Nothing yet — add skills, combos and notes below.</p> : (
         <SortableList className="moves-list" items={ids} getId={(x) => x}
           onReorder={(newIds) => setLines(newIds.map((id) => lines[Number(id.slice(1))]))}
-          renderItem={(id, i, { rowProps, grip }) => (
-            <li key={`${id}:${lines[i]}`} {...rowProps} className={`move-row ${rowProps.className || ''}`}>
-              {grip}
-              <span className="move-n">{i + 1}</span>
-              <input className="move-text" defaultValue={lines[i]} aria-label={`Move ${i + 1}`}
-                onBlur={(e) => { if (e.target.value.trim() !== lines[i]) { const ls = [...lines]; ls[i] = e.target.value; setLines(ls); } }}
-                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
-              <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><Icon name="up" size={18} /></button>
-              <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === lines.length - 1} onClick={() => move(i, 1)}><Icon name="down" size={18} /></button>
-              <button type="button" className="icon-btn sm danger" aria-label={`Remove move ${i + 1}`} onClick={() => setLines(lines.filter((_, k) => k !== i))}><Icon name="x" size={18} /></button>
-            </li>
-          )} />
+          renderItem={(id, i, { rowProps, grip }) => {
+            const m = parseMove(lines[i]);
+            return (
+              <li key={`${id}:${lines[i]}`} {...rowProps} className={`move-row mv-${m.type} ${rowProps.className || ''}`}>
+                {grip}
+                <span className="move-n">{i + 1}</span>
+                <span className={`mv-chip mv-${m.type}`}>{m.type}</span>
+                {m.type === 'note'
+                  ? <input className="move-text" defaultValue={m.text} aria-label={`Note ${i + 1}`}
+                      onBlur={(e) => { if (e.target.value.trim() !== m.text) { const ls = [...lines]; ls[i] = e.target.value; setLines(ls); } }}
+                      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+                  : <span className="move-label">{m.type === 'skill' && skillById[m.id] ? skillMove(skillById[m.id]).split(' | ')[1] : m.type === 'combo' && comboById[m.id] ? comboById[m.id].name : m.text}</span>}
+                <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><Icon name="up" size={18} /></button>
+                <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === lines.length - 1} onClick={() => move(i, 1)}><Icon name="down" size={18} /></button>
+                <button type="button" className="icon-btn sm danger" aria-label={`Remove ${i + 1}`} onClick={() => setLines(lines.filter((_, k) => k !== i))}><Icon name="x" size={18} /></button>
+              </li>
+            );
+          }} />
       )}
       <div className="move-add">
         <div className="move-add-row">
-          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a move (e.g. Opening pose, freeze 4 counts)…"
-            onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { e.preventDefault(); add(text); setText(''); } }} />
-          <button type="button" className="btn sm" disabled={!text.trim()} onClick={() => { add(text); setText(''); }}><Icon name="plus" size={16} /> Add</button>
-        </div>
-        <div className="move-add-row">
-          <input list="builder-skill-list" value={skill} onChange={(e) => setSkill(e.target.value)} placeholder="…or pick a skill from the library"
-            onKeyDown={(e) => { if (e.key === 'Enter' && skill.trim()) { e.preventDefault(); add(skill); setSkill(''); } }} />
-          <datalist id="builder-skill-list">{skillOptions.map((o) => <option key={o} value={o} />)}</datalist>
-          <button type="button" className="btn sm" disabled={!skill.trim()} onClick={() => { add(skill); setSkill(''); }}><Icon name="plus" size={16} /> Add skill</button>
+          <span className="mv-chip mv-skill">skill</span>
+          <input list="builder-skill-list" value={skill} onChange={(e) => setSkill(e.target.value)} placeholder="Search a skill from the library…"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill(); } }} />
+          <datalist id="builder-skill-list">{Object.keys(skillByLabel).length > 0 && skills.map((s) => <option key={s.id} value={skillMove(s).split(' | ')[1]} />)}</datalist>
+          <button type="button" className="btn sm" disabled={!pickedSkill} onClick={addSkill}><Icon name="plus" size={16} /> Add skill</button>
         </div>
         {combos.length > 0 && (
           <div className="move-add-row">
+            <span className="mv-chip mv-combo">combo</span>
             <select className="select" value={comboId} onChange={(e) => setComboId(e.target.value)} aria-label="Pick a combo">
-              <option value="">…or pick a combo or routine</option>
+              <option value="">Pick a combo or routine…</option>
               {combos.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
             </select>
-            <button type="button" className="btn sm" disabled={!combo} onClick={() => { add(combo.name); setComboId(''); }}>Add as one move</button>
-            <button type="button" className="btn sm" disabled={!comboMoves.length} onClick={() => { add(...comboMoves); setComboId(''); }}>
-              Add its {comboMoves.length || ''} moves</button>
+            <button type="button" className="btn sm" disabled={!combo} onClick={() => { add(comboMove(combo)); setComboId(''); }}><Icon name="plus" size={16} /> Add combo</button>
+            <button type="button" className="btn ghost sm" disabled={!combo || !movesOf(combo?.notes).length} title="Add each of its moves as separate lines"
+              onClick={() => { add(...movesOf(combo.notes)); setComboId(''); }}>Add its moves separately</button>
           </div>
         )}
+        <div className="move-add-row">
+          <span className="mv-chip mv-note">note</span>
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Write a note (e.g. Opening pose, freeze 4 counts, face judges)…"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNote(); } }} />
+          <button type="button" className="btn sm" disabled={!note.trim()} onClick={addNote}><Icon name="plus" size={16} /> Add note</button>
+        </div>
         <button type="button" className="btn ghost sm" onClick={() => setAsText(true)}>Edit as text</button>
       </div>
     </div>
@@ -686,5 +708,76 @@ function ShareButton({ athlete }) {
         </Modal>
       )}
     </>
+  );
+}
+
+/** A routine / combo shown as a numbered sequence: skills (with video), combos (with their moves), notes. */
+export function MovesList({ lines, onPlay, depth = 0 }) {
+  const { skillById, comboById } = useApp();
+  return (
+    <ol className="cn-moves">
+      {lines.map((l, i) => {
+        const m = parseMove(l);
+        if (m.type === 'skill') {
+          const sk = skillById[m.id];
+          return (
+            <li key={i} className="mv-li mv-skill">
+              <span>{sk ? skillMove(sk).split(' | ')[1] : m.text}</span>
+              {sk?.video_url && onPlay && <button className="mv-play" aria-label={`Watch ${m.text}`} onClick={() => onPlay({ url: sk.video_url, title: skillLabel(sk) })}><Icon name="play" size={14} /></button>}
+              {sk?.gif_url && <GifThumb url={sk.gif_url} title={skillLabel(sk)} size={30} />}
+            </li>
+          );
+        }
+        if (m.type === 'combo') {
+          const c = comboById[m.id];
+          const inner = movesOf(c?.notes);
+          return (
+            <li key={i} className="mv-li mv-combo">
+              <span><span className="mv-chip mv-combo">{c?.kind || 'combo'}</span> {c ? c.name : m.text}</span>
+              {c?.video_url && onPlay && <button className="mv-play" aria-label={`Watch ${c.name}`} onClick={() => onPlay({ url: c.video_url, title: c.name })}><Icon name="play" size={14} /></button>}
+              {inner.length > 0 && depth < 1 && <div className="mv-inner"><MovesList lines={inner} onPlay={onPlay} depth={depth + 1} /></div>}
+            </li>
+          );
+        }
+        return <li key={i} className="mv-li mv-note"><em>{m.text}</em></li>;
+      })}
+    </ol>
+  );
+}
+
+/** Buttons for every video on a note: library demo + the coach's own clips. */
+function VideoChips({ n, onPlay }) {
+  const { skillById = {}, comboById = {} } = useApp();
+  const vids = noteVideos(n, skillById, comboById);
+  if (!vids.length) return null;
+  return (
+    <div className="video-chips">
+      {vids.map((v, i) => (
+        <button key={i} type="button" className={`video-chip ${v.demo ? 'demo' : ''}`} onClick={() => onPlay({ url: v.url, title: `${n.title} – ${v.label}` })}>
+          <Icon name="play" size={13} /> {v.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Edit a note's own videos (label + link); shows the linked library demo too. */
+function VideosEditor({ note, onChange }) {
+  const { skillById = {}, comboById = {} } = useApp();
+  const demo = (note.skill_id && skillById[note.skill_id]?.video_url) || (note.combo_id && comboById[note.combo_id]?.video_url);
+  const vids = note.videos || [];
+  const setAt = (i, k, v) => onChange(vids.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  return (
+    <div className="videos-editor">
+      {demo && <div className="ve-demo"><span className="video-chip demo"><Icon name="play" size={13} /> Demo</span> <small className="muted">from the library — updates when the library video changes</small></div>}
+      {vids.map((v, i) => (
+        <div key={i} className="ve-row">
+          <input value={v.label} onChange={(e) => setAt(i, 'label', e.target.value)} placeholder="Label (e.g. Run-through Nov 23)" aria-label="Video label" />
+          <input type="url" inputMode="url" value={v.url} onChange={(e) => setAt(i, 'url', e.target.value)} placeholder="https://vimeo.com/…" aria-label="Video link" />
+          <button type="button" className="icon-btn sm danger" aria-label="Remove video" onClick={() => onChange(vids.filter((_, j) => j !== i))}><Icon name="x" size={18} /></button>
+        </div>
+      ))}
+      <button type="button" className="btn ghost sm" onClick={() => onChange([...vids, { label: vids.length ? '' : 'Run-through', url: '' }])}><Icon name="plus" size={16} /> Add a video</button>
+    </div>
   );
 }

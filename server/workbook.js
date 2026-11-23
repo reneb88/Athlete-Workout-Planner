@@ -120,6 +120,7 @@ export async function parseWorkbook(buffer) {
   const noteSheet = sheet('Athlete Notes');
   const athleteNotes = noteSheet ? readTable(noteSheet, 'Athlete ID', {
     athlete_id: ['Athlete ID'], kind: ['Type'], title: ['Title'], notes: ['Notes', 'Moves / notes'], video_url: ['Video URL'], done: ['Done'],
+    skill_id: ['Skill ID'], combo_id: ['Combo ID'], videos: ['More videos'],
   }).map((n) => ({ ...n, notes: n.notes })) : undefined;
 
   const templates = readTable(sheet('Templates'), 'Template name', {
@@ -258,9 +259,13 @@ export async function buildWorkbook(store) {
     { header: 'Notes', key: 'notes', width: 60 },
     { header: 'Video URL', key: 'video_url', width: 30 },
     { header: 'Done', key: 'done', width: 8 },
+    { header: 'Skill ID', key: 'skill_id', width: 9 },
+    { header: 'Combo ID', key: 'combo_id', width: 9 },
+    { header: 'More videos', key: 'videos', width: 50 },
   ];
   for (const n of store.allNotes()) {
-    const row = nt.addRow({ ...n, athlete: athName[n.athlete_id], done: n.done ? 'yes' : '' });
+    const vids = (() => { try { return JSON.parse(n.videos || '[]'); } catch { return []; } })();
+    const row = nt.addRow({ ...n, athlete: athName[n.athlete_id], done: n.done ? 'yes' : '', videos: vids.map((v) => `${v.label ? v.label + ': ' : ''}${v.url}`).join('; ') });
     row.getCell('notes').alignment = { wrapText: true, vertical: 'top' };
   }
   styleHeader(nt);

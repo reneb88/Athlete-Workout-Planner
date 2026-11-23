@@ -1,4 +1,5 @@
-import { athleteView, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { useApp } from './components.jsx';
+import { noteVideos, moveText, athleteView, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, familyKey, familyName, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 /** Turn a saved workout into everything a checklist needs. */
 export function sheetData(athlete, w, ctx) {
@@ -25,6 +26,7 @@ export function applyOptions(d, { hideDone = false, onlyNew = false } = {}) {
 /** Branded checklist sheet. Hidden on screen unless inside .print-preview; always shown when printing. */
 export function PrintSheet({ data, skillById, showNotes = false, poster = false, hideCategories = false, videoBoard = data.videoBoard }) {
   const { athlete, skills, combos, done, comboByCheckpoint } = data;
+  const { comboById = {} } = useApp() || {};
   const buildsOn = buildsOnMap(Object.values(skillById));
   const nodes = buildTree(skills, Object.values(skillById)).filter((c) => c.subs.length);
   return (
@@ -86,8 +88,8 @@ export function PrintSheet({ data, skillById, showNotes = false, poster = false,
                   const lines = String(n.notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
                   return (
                     <div key={n.id} className="ps-note-block">
-                      <b>{n.title}</b>{n.video_url && <a className="ps-link" href={shareUrl(n.video_url)} target="_blank" rel="noreferrer">▶ video</a>}
-                      {k === 'skill' ? <p>{n.notes}</p> : <ol>{lines.map((l, i) => <li key={i}>{l}</li>)}</ol>}
+                      <b>{n.title}</b>{noteVideos(n, skillById, comboById).map((v, vi) => <a key={vi} className="ps-link" href={shareUrl(v.url)} target="_blank" rel="noreferrer">▶ {v.label.toLowerCase()}</a>)}
+                      {k === 'skill' ? <p>{n.notes}</p> : <ol>{lines.map((l, i) => <li key={i}>{moveText(l, skillById, comboById)}</li>)}</ol>}
                     </div>
                   );
                 })}

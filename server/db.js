@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS athlete_notes (
   notes TEXT NOT NULL DEFAULT '',
   video_url TEXT NOT NULL DEFAULT '',
   combo_id TEXT NOT NULL DEFAULT '',
+  skill_id TEXT NOT NULL DEFAULT '',
+  videos TEXT NOT NULL DEFAULT '[]',
   done INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -129,6 +131,24 @@ const str = (v) => (v === null || v === undefined ? '' : String(v).trim());
 /** Official required-element categories (competition rules), separate from the teaching categories. */
 export const REQUIRED_ELEMENTS = ['Multiples', 'Power & Gymnastics', 'Manipulation'];
 /** Accepts an array or text like "multiples, power" and returns e.g. "Multiples, Power & Gymnastics". */
+/**
+ * Extra videos on a coach note (practice clips, routine run-throughs): [{ label, url }].
+ * Accepts an array, JSON, or text like "Run-through: https://… ; https://…".
+ */
+export function parseVideos(v) {
+  let list = v;
+  if (typeof v === 'string') {
+    try { list = JSON.parse(v); } catch {
+      list = v.split(/[;\n]+/).map((part) => {
+        const m = part.match(/^(.*?):?\s*(https?:\/\/\S+)\s*$/);
+        return m ? { label: m[1].trim(), url: m[2] } : null;
+      });
+    }
+  }
+  return (Array.isArray(list) ? list : []).filter((x) => x && str(x.url))
+    .map((x) => ({ label: str(x.label), url: str(x.url) }));
+}
+
 /** Coach-note groups on an athlete's profile. */
 export const noteKind = (v) => {
   const t = String(v || '').toLowerCase();
@@ -167,10 +187,13 @@ export function openDb(file) {
   }
   // Migrations: add columns that newer versions use.
   for (const [table, col] of [['skills', 'required_elements'], ['skills', 'film_status'], ['skills', 'film_assignee'], ['skills', 'film_note'],
-    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at'], ['athlete_notes', 'combo_id'], ['athletes', 'share_token']]) {
+    ['combos', 'film_status'], ['combos', 'film_assignee'], ['combos', 'film_note'], ['athletes', 'view_style'], ['skills', 'gif_url'], ['athletes', 'last_printed_at'], ['athlete_notes', 'combo_id'], ['athletes', 'share_token'], ['athlete_notes', 'skill_id']]) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === col)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
     }
+  }
+  if (!db.prepare('PRAGMA table_info(athlete_notes)').all().some((c) => c.name === 'videos')) {
+    db.exec("ALTER TABLE athlete_notes ADD COLUMN videos TEXT NOT NULL DEFAULT '[]'");
   }
   const store = new Store(db);
   // One time: link existing "Try …" steps to the family they lead to.
@@ -416,7 +439,7 @@ class Store {
   // ---------- Coach notes per athlete: working skills, working combos, routine ----------
   listNotes(athleteId) {
     return this.db.prepare('SELECT * FROM athlete_notes WHERE athlete_id = ? ORDER BY sort_order, id').all(athleteId)
-      .map((n) => ({ ...n, done: !!n.done }));
+      .map((n) => ({ ...n, done: !!n.done, videos: parseVideos(n.videos) }));
   }
 
   saveNote(athleteId, input, id = null) {
@@ -428,12 +451,13 @@ class Store {
     if (id) {
       const cur = this.db.prepare('SELECT * FROM athlete_notes WHERE id = ? AND athlete_id = ?').get(id, athleteId);
       if (!cur) throw httpError(404, 'Note not found');
-      this.db.prepare("UPDATE athlete_notes SET kind = ?, title = ?, notes = ?, video_url = ?, combo_id = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(kind, title, notes, str(input.video_url ?? cur.video_url), str(input.combo_id ?? cur.combo_id), input.done === undefined ? cur.done : (input.done ? 1 : 0), id);
+      this.db.prepare("UPDATE athlete_notes SET kind = ?, title = ?, notes = ?, video_url = ?, combo_id = ?, skill_id = ?, videos = ?, done = ?, updated_at = datetime('now') WHERE id = ?")
+        .run(kind, title, notes, str(input.video_url ?? cur.video_url), str(input.combo_id ?? cur.combo_id), str(input.skill_id ?? cur.skill_id),
+          'videos' in input ? JSON.stringify(parseVideos(input.videos)) : cur.videos, input.done === undefined ? cur.done : (input.done ? 1 : 0), id);
     } else {
       const order = (this.db.prepare('SELECT MAX(sort_order) AS m FROM athlete_notes WHERE athlete_id = ?').get(athleteId).m ?? 0) + 1;
-      id = Number(this.db.prepare('INSERT INTO athlete_notes (athlete_id, kind, title, notes, video_url, combo_id, done, sort_order) VALUES (?,?,?,?,?,?,?,?)')
-        .run(athleteId, kind, title, notes, str(input.video_url), str(input.combo_id), input.done ? 1 : 0, order).lastInsertRowid);
+      id = Number(this.db.prepare('INSERT INTO athlete_notes (athlete_id, kind, title, notes, video_url, combo_id, skill_id, videos, done, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)')
+        .run(athleteId, kind, title, notes, str(input.video_url), str(input.combo_id), str(input.skill_id), JSON.stringify(parseVideos(input.videos)), input.done ? 1 : 0, order).lastInsertRowid);
     }
     return this.listNotes(athleteId);
   }

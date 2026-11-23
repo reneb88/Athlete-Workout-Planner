@@ -322,3 +322,17 @@ test('private athlete links: only that athlete, no password', async () => {
     assert.equal((await fetch(`${base}/api/public/${token}`)).status, 404);
   } finally { server.close(); }
 });
+
+test('coach notes keep a linked skill and several labelled videos', async () => {
+  const s = await fresh();
+  let n = s.saveNote('A01', { kind: 'skill', title: 'Toad', skill_id: 'S110', videos: [{ label: 'Practice Nov 23', url: 'https://vimeo.com/1' }, { label: 'x', url: '' }] });
+  assert.equal(n[0].skill_id, 'S110');
+  assert.deepEqual(n[0].videos, [{ label: 'Practice Nov 23', url: 'https://vimeo.com/1' }]);
+  n = s.saveNote('A01', { ...n[0], videos: [...n[0].videos, { label: 'Run-through', url: 'https://vimeo.com/2' }] }, n[0].id);
+  assert.equal(n[0].videos.length, 2);
+  const b = openDb(':memory:');
+  b.importData(await parseWorkbook(await buildWorkbook(s)), { replace: true });
+  const bn = b.getWorkout('A01').notes[0];
+  assert.equal(bn.skill_id, 'S110');
+  assert.deepEqual(bn.videos.map((v) => v.label), ['Practice Nov 23', 'Run-through']);
+});

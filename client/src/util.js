@@ -281,3 +281,35 @@ export function newSincePrint(w) {
   for (const [k, at] of Object.entries(w.assigned_at || {})) if (at > since) out.add(k);
   return out;
 }
+
+/*
+ * Moves in a combo or routine are stored one per line:
+ *   "@S010 | 180"              → a library skill (keeps its video)
+ *   "@C003 | Toad into cross"  → a Combo Library combo / routine
+ *   anything else              → a note ("Freeze 4 counts", "Face judges")
+ */
+export function parseMove(line) {
+  const m = String(line).match(/^@([SC]\d+)\s*\|\s*(.*)$/);
+  if (!m) return { type: 'note', id: null, text: String(line).trim() };
+  return { type: m[1][0] === 'S' ? 'skill' : 'combo', id: m[1], text: m[2].trim() };
+}
+export const skillMove = (s) => `@${s.id} | ${s.family && s.name.toLowerCase() !== s.family.toLowerCase() ? `${s.family}: ` : ''}${skillLabel(s)}`;
+export const comboMove = (c) => `@${c.id} | ${c.name}`;
+export const movesOf = (text) => String(text || '').split('\n').map((x) => x.trim()).filter(Boolean);
+/** Plain words for a move (for print/PDF), using the current library names. */
+export function moveText(line, skillById = {}, comboById = {}) {
+  const m = parseMove(line);
+  if (m.type === 'skill' && skillById[m.id]) return skillMove(skillById[m.id]).split(' | ')[1];
+  if (m.type === 'combo' && comboById[m.id]) return `${comboById[m.id].name} (combo)`;
+  return m.text;
+}
+
+/** All videos for a coach note: the linked library demo first, then the coach's own (practice clips, run-throughs). */
+export function noteVideos(n, skillById = {}, comboById = {}) {
+  const own = [];
+  if (n.video_url) own.push({ label: 'Video', url: n.video_url });
+  for (const v of n.videos || []) if (v.url) own.push({ label: v.label || 'Video', url: v.url });
+  const demo = (n.skill_id && skillById[n.skill_id]?.video_url) || (n.combo_id && comboById[n.combo_id]?.video_url);
+  // The library video comes first — unless it's one of the coach's own (then keep the coach's label).
+  return demo && !own.some((v) => v.url === demo) ? [{ label: n.skill_id ? 'Demo' : 'Video', url: demo, demo: true }, ...own] : own;
+}

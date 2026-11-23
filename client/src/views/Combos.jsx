@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { Confirm, Empty, Field, Icon, Modal, SearchBox, Seg, VideoModal, useApp } from '../components.jsx';
 import SkillPicker from '../SkillPicker.jsx';
 import { skillLabel } from '../util.js';
+import { MovesList } from './AthleteView.jsx';
 
 export default function Combos() {
   const { combos, skillById, comboById, run } = useApp();
@@ -49,7 +50,7 @@ export default function Combos() {
               </div>
             ) : <p className="muted small">Standalone — assign directly in the Workout Designer.</p>}
             {c.notes && (c.notes.includes('\n')
-              ? <ol className="cn-moves">{c.notes.split('\n').map((l) => l.trim()).filter(Boolean).map((l, i) => <li key={i}>{l}</li>)}</ol>
+              ? <MovesList lines={c.notes.split('\n').map((l) => l.trim()).filter(Boolean)} />
               : <p className="notes">{c.notes}</p>)}
             <div className="row-actions">
               {c.video_url && <button className="btn sm" onClick={() => setVideo(c)}><Icon name="play" size={18} /> Video</button>}

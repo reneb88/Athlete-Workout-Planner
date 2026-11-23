@@ -1,4 +1,4 @@
-import { prereqText, buildTree, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
+import { noteVideos, moveText, prereqText, buildTree, familySkills, familyVideoUrl, isVariant, shareUrl, skillLabel } from './util.js';
 
 // Compact, two-column, paper-saving checklist PDF.
 const NAVY = [11, 30, 58];
@@ -147,18 +147,21 @@ export async function exportPdfMany(sheets, { showNotes = false, poster = false,
     }
     // Coach notes: working skills, combos and the routine written in order
     const active = onlyNew ? [] : notes.filter((n) => !n.done);
+    const byId = Object.fromEntries(all.map((x) => [x.id, x]));
+    const comboById = Object.fromEntries((sheet.allCombos || combos).map((x) => [x.id, x]));
     if (active.length) {
       catBand('Working on', NAVY);
       for (const [k, label] of [['skill', 'Working skills'], ['combo', 'Working combos'], ['routine', 'Routine']]) {
         for (const n of active.filter((x) => x.kind === k)) {
           room(30);
           text(`${label}: ${n.title || ''}`, x0(), y + 9, { size: FS.fam, style: 'bold', color: NAVY, maxW: colW - 40 });
-          if (n.video_url) link('video', shareUrl(n.video_url), x0() + colW, y + 9);
+          let right = x0() + colW;
+          for (const v of noteVideos(n, byId, comboById).reverse()) right -= link(v.label.toLowerCase(), shareUrl(v.url), right, y + 9) + 6;
           y += 14;
           const lines = String(n.notes || '').split('\n').map((x) => x.trim()).filter(Boolean);
           lines.forEach((l, i) => {
             doc.setFont('helvetica', 'normal'); doc.setFontSize(FS.item);
-            const wrapped = doc.splitTextToSize(k === 'skill' ? l : `${i + 1}. ${l}`, colW - 6);
+            const wrapped = doc.splitTextToSize(k === 'skill' ? l : `${i + 1}. ${moveText(l, byId, comboById)}`, colW - 6);
             room(wrapped.length * LH + 2);
             text(wrapped.join('\n'), x0() + 4, y + 8, { color: [20, 24, 32] });
             y += wrapped.length * LH + 1.5;
