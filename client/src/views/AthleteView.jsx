@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api.js';
-import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, Seg, VideoModal, useApp, useOpenSet } from '../components.jsx';
+import { Check, Confirm, Disclosure, Empty, Field, GifThumb, Icon, Modal, ReTags, Seg, SortableList, VideoModal, useApp, useOpenSet } from '../components.jsx';
 import { athleteView, dbDate, fmtDay, newSincePrint, prereqText, buildTree, buildsOnMap, famId, familyKey, familyName, familySkills, isVariant, skillLabel, splitVideo } from '../util.js';
 import { go } from '../App.jsx';
 import { exportPdf } from '../pdf.js';
 import { PrintSheet } from '../printing.jsx';
+import SkillPicker from '../SkillPicker.jsx';
 
 export default function AthleteView({ athleteId }) {
   const app = useApp();
@@ -341,6 +342,22 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [showDone, setShowDone] = useState({});
+  const [picking, setPicking] = useState(false);
+  // Add many at once: library skills become working skills; library combos/routines keep their moves and video.
+  const addMany = async ({ skills: sIds, combos: cIds }, skillById, comboById) => {
+    const have = (kind, title, comboId) => notes.some((n) => (comboId && n.combo_id === comboId)
+      || (n.kind === kind && n.title.trim().toLowerCase() === title.trim().toLowerCase()));
+    const todo = [
+      ...sIds.map((id) => skillById[id]).filter(Boolean).map((s) => ({ kind: 'skill', title: `${s.family}: ${skillLabel(s)}`, notes: s.teaching_notes || '', video_url: s.video_url || '' })),
+      ...cIds.map((id) => comboById[id]).filter(Boolean).map((c) => ({ kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', video_url: c.video_url || '', combo_id: c.id })),
+    ].filter((n) => !have(n.kind, n.title, n.combo_id));
+    if (!todo.length) { setPicking(false); return; }
+    let list = notes;
+    for (const n of todo) list = await api.saveNote(athlete.id, n);
+    onChange(list);
+    await run(() => Promise.resolve(), `Added ${todo.length} to ${athlete.name.split(' ')[0]}’s coach notes`);
+    setPicking(false);
+  };
   const save = async ({ toLibrary, updateLibrary, ...note }) => {
     // Combos and routines can live in the Combo Library too, so they can be given to other athletes later.
     if (note.kind !== 'skill') {
@@ -356,6 +373,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
       <div className="cn-head">
         <h2>Coach notes</h2>
         <small className="muted">What {athlete.name.split(' ')[0]} is working on right now</small>
+        <button className="btn primary sm push" onClick={() => setPicking(true)}><Icon name="plus" size={16} /> Add from library</button>
       </div>
       {NOTE_GROUPS.map((g) => {
         const items = notes.filter((n) => n.kind === g.kind);
@@ -380,6 +398,7 @@ function CoachNotes({ athlete, notes, onChange, onPlay }) {
           </div>
         );
       })}
+      {picking && <LibraryPicker notes={notes} onAdd={addMany} onClose={() => setPicking(false)} />}
       {editing && <NoteEditor note={editing} onSave={async (n) => { await save(n); setEditing(null); }} onClose={() => setEditing(null)} />}
       {deleting && <Confirm text={`Delete “${deleting.title || 'this note'}”?`}
         onConfirm={async () => onChange(await run(() => api.deleteNote(deleting.id), 'Deleted'))} onClose={() => setDeleting(null)} />}
@@ -416,15 +435,9 @@ function NoteEditor({ note, onSave, onClose }) {
     if (!c) return;
     setF((x) => ({ ...x, kind: c.kind === 'routine' ? 'routine' : 'combo', title: c.name, notes: c.notes || '', video_url: c.video_url || x.video_url, combo_id: c.id, toLibrary: false, updateLibrary: false }));
   };
-  const [pick, setPick] = useState('');
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e?.target ? e.target.value : e }));
   const ordered = f.kind !== 'skill';
   const options = useMemo(() => [...new Set(skills.map((s) => (s.name.toLowerCase() === s.family.toLowerCase() ? skillLabel(s) : `${s.family} – ${skillLabel(s)}`)))].sort(), [skills]);
-  const addLine = () => {
-    if (!pick.trim()) return;
-    setF((x) => ({ ...x, notes: (x.notes ? x.notes.replace(/\s+$/, '') + '\n' : '') + pick.trim() }));
-    setPick('');
-  };
   return (
     <Modal title={note.id ? 'Edit note' : 'New note'} onClose={onClose} wide
       footer={<><button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -442,18 +455,13 @@ function NoteEditor({ note, onSave, onClose }) {
       )}
       <Field label="Title"><input value={f.title} onChange={set('title')} autoFocus
         placeholder={f.kind === 'routine' ? 'e.g. Single rope freestyle 2027' : f.kind === 'combo' ? 'e.g. Toad combo' : 'e.g. Triple under'} /></Field>
-      <Field label={ordered ? 'Moves in order — one per line' : 'Notes'} hint={ordered ? 'They’ll show numbered 1, 2, 3… on the athlete’s page and printout.' : 'Coaching cues, what to focus on, goals…'}>
-        <textarea rows={ordered ? 10 : 5} value={f.notes} onChange={set('notes')}
-          placeholder={ordered ? 'Toad\nCross open\nSide swing triple\n…' : 'Keep elbows in, land on the balls of the feet…'} />
-      </Field>
-      {ordered && (
-        <Field group label="Add a skill from the library">
-          <div className="gif-field">
-            <input list="note-skill-list" value={pick} onChange={(e) => setPick(e.target.value)} placeholder="Start typing a skill…"
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLine(); } }} />
-            <button type="button" className="btn sm" disabled={!pick.trim()} onClick={addLine}><Icon name="plus" size={16} /> Add as next move</button>
-          </div>
-          <datalist id="note-skill-list">{options.map((o) => <option key={o} value={o} />)}</datalist>
+      {ordered ? (
+        <Field group label="Moves in order" hint="Drag ⋮⋮ or use the arrows to reorder. Shown numbered on the athlete’s page and printout.">
+          <MovesBuilder value={f.notes} onChange={(v) => setF((x) => ({ ...x, notes: v }))} skillOptions={options} />
+        </Field>
+      ) : (
+        <Field label="Notes" hint="Coaching cues, what to focus on, goals…">
+          <textarea rows={5} value={f.notes} onChange={set('notes')} placeholder="Keep elbows in, land on the balls of the feet…" />
         </Field>
       )}
       <Field label="Video link (optional)"><input type="url" inputMode="url" value={f.video_url || ''} onChange={set('video_url')} placeholder="https://vimeo.com/…" /></Field>
@@ -471,5 +479,124 @@ function NoteEditor({ note, onSave, onClose }) {
         </label>
       )}
     </Modal>
+  );
+}
+
+/** Pick several skills, combos and routines from the library at once. */
+function LibraryPicker({ notes, onAdd, onClose }) {
+  const { combos, skillById, comboById } = useApp();
+  const [tab, setTab] = useState('skills');
+  const [skillIds, setSkillIds] = useState([]);
+  const [comboIds, setComboIds] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const already = (c) => notes.some((n) => n.combo_id === c.id || n.title.trim().toLowerCase() === c.name.trim().toLowerCase());
+  const list = combos.filter((c) => (tab === 'routines' ? c.kind === 'routine' : c.kind !== 'routine'));
+  const total = skillIds.length + comboIds.length;
+  const toggle = (id) => setComboIds((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
+  return (
+    <Modal title="Add from the library" onClose={onClose} wide
+      footer={<><span className="muted small grow">{total ? `${skillIds.length} skills · ${comboIds.length} combos/routines selected` : 'Tick as many as you like'}</span>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={!total || busy} onClick={async () => { setBusy(true); try { await onAdd({ skills: skillIds, combos: comboIds }, skillById, comboById); } finally { setBusy(false); } }}>
+          {busy ? 'Adding…' : `Add ${total || ''}`}</button></>}>
+      <Seg value={tab} onChange={setTab} options={[
+        { value: 'skills', label: `Working skills${skillIds.length ? ` (${skillIds.length})` : ''}` },
+        { value: 'combos', label: `Combos${comboIds.filter((id) => comboById[id]?.kind !== 'routine').length ? ` (${comboIds.filter((id) => comboById[id]?.kind !== 'routine').length})` : ''}` },
+        { value: 'routines', label: `Routines${comboIds.filter((id) => comboById[id]?.kind === 'routine').length ? ` (${comboIds.filter((id) => comboById[id]?.kind === 'routine').length})` : ''}` },
+      ]} />
+      <div style={{ marginTop: 12 }}>
+        {tab === 'skills' && (
+          <Field group label="Search and tick skills" hint="Tick single skills, or a whole family. Each one becomes a Working skill (with its video and teaching notes).">
+            <SkillPicker value={skillIds} onChange={setSkillIds} placeholder="Search skills, e.g. toad, cross, triple…" />
+          </Field>
+        )}
+        {tab !== 'skills' && (list.length === 0
+          ? <p className="muted">No {tab} in the Combo Library yet.</p>
+          : (
+            <div className="lib-pick">
+              {list.map((c) => {
+                const on = comboIds.includes(c.id);
+                const dup = already(c);
+                return (
+                  <div key={c.id} className={`picker-item ${on ? 'on' : ''} ${dup ? 'dup' : ''}`} onClick={() => !dup && toggle(c.id)}>
+                    <Check checked={dup || on} onChange={() => !dup && toggle(c.id)} label={c.name} />
+                    <span className="grow"><b>{c.name}</b>{c.notes && <small className="muted"> · {c.notes.split('\n').filter(Boolean).length} moves</small>}</span>
+                    {dup && <small className="muted">already added</small>}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+      </div>
+    </Modal>
+  );
+}
+
+/** Routine / combo builder: one row per move — type it, pick a skill, or insert a combo. */
+function MovesBuilder({ value, onChange, skillOptions }) {
+  const { combos } = useApp();
+  const lines = String(value || '').split('\n').map((x) => x.trim()).filter(Boolean);
+  const [text, setText] = useState('');
+  const [skill, setSkill] = useState('');
+  const [comboId, setComboId] = useState('');
+  const [asText, setAsText] = useState(false);
+  const setLines = (ls) => onChange(ls.map((x) => x.trim()).filter(Boolean).join('\n'));
+  const add = (...items) => setLines([...lines, ...items]);
+  const move = (i, d) => { const ls = [...lines]; const j = i + d; if (j < 0 || j >= ls.length) return; [ls[i], ls[j]] = [ls[j], ls[i]]; setLines(ls); };
+  const combo = combos.find((c) => c.id === comboId);
+  const comboMoves = combo ? String(combo.notes || '').split('\n').map((x) => x.trim()).filter(Boolean) : [];
+  if (asText) {
+    return (
+      <div>
+        <textarea rows={10} value={value} onChange={(e) => onChange(e.target.value)} placeholder={'One move per line'} />
+        <button type="button" className="btn ghost sm" onClick={() => { setLines(lines); setAsText(false); }}>Back to the builder</button>
+      </div>
+    );
+  }
+  const ids = lines.map((_, i) => `m${i}`);
+  return (
+    <div className="moves">
+      {lines.length === 0 ? <p className="muted small">No moves yet — add them below.</p> : (
+        <SortableList className="moves-list" items={ids} getId={(x) => x}
+          onReorder={(newIds) => setLines(newIds.map((id) => lines[Number(id.slice(1))]))}
+          renderItem={(id, i, { rowProps, grip }) => (
+            <li key={`${id}:${lines[i]}`} {...rowProps} className={`move-row ${rowProps.className || ''}`}>
+              {grip}
+              <span className="move-n">{i + 1}</span>
+              <input className="move-text" defaultValue={lines[i]} aria-label={`Move ${i + 1}`}
+                onBlur={(e) => { if (e.target.value.trim() !== lines[i]) { const ls = [...lines]; ls[i] = e.target.value; setLines(ls); } }}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} />
+              <button type="button" className="icon-btn sm" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><Icon name="up" size={18} /></button>
+              <button type="button" className="icon-btn sm" aria-label="Move down" disabled={i === lines.length - 1} onClick={() => move(i, 1)}><Icon name="down" size={18} /></button>
+              <button type="button" className="icon-btn sm danger" aria-label={`Remove move ${i + 1}`} onClick={() => setLines(lines.filter((_, k) => k !== i))}><Icon name="x" size={18} /></button>
+            </li>
+          )} />
+      )}
+      <div className="move-add">
+        <div className="move-add-row">
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a move (e.g. Opening pose, freeze 4 counts)…"
+            onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) { e.preventDefault(); add(text); setText(''); } }} />
+          <button type="button" className="btn sm" disabled={!text.trim()} onClick={() => { add(text); setText(''); }}><Icon name="plus" size={16} /> Add</button>
+        </div>
+        <div className="move-add-row">
+          <input list="builder-skill-list" value={skill} onChange={(e) => setSkill(e.target.value)} placeholder="…or pick a skill from the library"
+            onKeyDown={(e) => { if (e.key === 'Enter' && skill.trim()) { e.preventDefault(); add(skill); setSkill(''); } }} />
+          <datalist id="builder-skill-list">{skillOptions.map((o) => <option key={o} value={o} />)}</datalist>
+          <button type="button" className="btn sm" disabled={!skill.trim()} onClick={() => { add(skill); setSkill(''); }}><Icon name="plus" size={16} /> Add skill</button>
+        </div>
+        {combos.length > 0 && (
+          <div className="move-add-row">
+            <select className="select" value={comboId} onChange={(e) => setComboId(e.target.value)} aria-label="Pick a combo">
+              <option value="">…or pick a combo or routine</option>
+              {combos.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.kind})</option>)}
+            </select>
+            <button type="button" className="btn sm" disabled={!combo} onClick={() => { add(combo.name); setComboId(''); }}>Add as one move</button>
+            <button type="button" className="btn sm" disabled={!comboMoves.length} onClick={() => { add(...comboMoves); setComboId(''); }}>
+              Add its {comboMoves.length || ''} moves</button>
+          </div>
+        )}
+        <button type="button" className="btn ghost sm" onClick={() => setAsText(true)}>Edit as text</button>
+      </div>
+    </div>
   );
 }
